@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from revseg.secrets import get_openai_api_key
+
 
 class LLMError(RuntimeError):
     pass
@@ -34,7 +36,7 @@ class OpenAIChatClient:
     max_retries: int = 3
 
     def _key(self) -> str:
-        k = self.api_key or os.getenv("OPENAI_API_KEY")
+        k = self.api_key or get_openai_api_key()
         if not k:
             raise LLMError("OPENAI_API_KEY is not set")
         return k
