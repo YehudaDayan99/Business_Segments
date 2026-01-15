@@ -178,6 +178,7 @@ def run_pipeline(
 ) -> Dict[str, Any]:
     """End-to-end run for multiple tickers (latest 10-K per ticker)."""
     out_dir = Path(out_dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
     filings_base_dir = Path(filings_base_dir).expanduser().resolve()
     cache_dir = Path(cache_dir).expanduser().resolve()
 
@@ -250,6 +251,8 @@ def run_pipeline(
             ambiguous = False
 
             for it in range(1, max_react_iters + 1):
+                print(f"[{ticker}] selecting segment table (iter {it})...", flush=True)
+                _trace_append(t_art, {"stage": "segment_select_request", "iter": it})
                 seg_choice = select_segment_revenue_table(
                     llm,
                     ticker=ticker,
@@ -280,6 +283,7 @@ def run_pipeline(
                     ambiguous = True
                     break
 
+                print(f"[{ticker}] inferring layout for {table_id} (iter {it})...", flush=True)
                 grid = extract_table_grid_normalized(html_path, table_id)
                 seg_layout = infer_table_layout(
                     llm,
@@ -299,6 +303,7 @@ def run_pipeline(
                 total_rev: Optional[int] = None
                 if income_cand is not None:
                     try:
+                        print(f"[{ticker}] extracting total revenue from income statement {income_cand.table_id}...", flush=True)
                         inc_grid = extract_table_grid_normalized(html_path, income_cand.table_id)
                         inc_layout = infer_table_layout(
                             llm,
@@ -317,6 +322,7 @@ def run_pipeline(
                     except Exception:
                         total_rev = None
                 if total_rev is None:
+                    print(f"[{ticker}] income statement total not found; falling back to SEC companyfacts...", flush=True)
                     total_rev = fetch_companyfacts_total_revenue_usd(cik, seg_year)
                 validation = validate_segment_table(
                     segment_revenues_usd=seg_values,
@@ -361,6 +367,7 @@ def run_pipeline(
             # CSV2 + CSV3 via LLM
             html_text = _html_text_for_llm(html_path)
             seg_names = sorted(seg_values.keys())
+            print(f"[{ticker}] summarizing segment descriptions (LLM)...", flush=True)
             seg_desc = summarize_segment_descriptions(
                 llm,
                 ticker=ticker,
@@ -384,6 +391,7 @@ def run_pipeline(
                     }
                 )
 
+            print(f"[{ticker}] expanding key items per segment (LLM)...", flush=True)
             csv3_payload = expand_key_items_per_segment(
                 llm,
                 ticker=ticker,
@@ -411,6 +419,7 @@ def run_pipeline(
                 )
 
             # CSV4: additional revenue tables
+            print(f"[{ticker}] selecting other revenue tables (LLM)...", flush=True)
             other = select_other_revenue_tables(
                 llm,
                 ticker=ticker,
