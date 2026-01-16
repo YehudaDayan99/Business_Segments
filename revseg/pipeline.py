@@ -17,6 +17,7 @@ from revseg.react_agents import (
     infer_table_layout,
     rank_candidates_for_financial_tables,
     extract_keyword_windows,
+    classify_table_candidates,
     select_other_revenue_tables,
     select_segment_revenue_table,
     summarize_segment_descriptions,
@@ -122,6 +123,44 @@ def _pick_income_statement_candidate(candidates: List[TableCandidate]) -> Option
             best = c
     return best
 
+
+def _has_negative(values: Dict[str, int]) -> bool:
+    return any((v is not None and int(v) < 0) for v in values.values())
+
+
+def _pick_best_by_kind(
+    classifications: Dict[str, Any],
+    *,
+    kind: str,
+    fallback_ranked: List[TableCandidate],
+    exclude: set[str] | None = None,
+) -> List[str]:
+    """Return ordered table_ids for a given kind based on LLM classification + fallback rank."""
+    exclude = exclude or set()
+    tables = (classifications.get("tables") or []) if isinstance(classifications, dict) else []
+    scored: List[Tuple[float, str]] = []
+    for t in tables:
+        try:
+            tid = str(t.get("table_id") or "")
+            tk = str(t.get("table_kind") or "")
+            conf = float(t.get("confidence") or 0.0)
+        except Exception:
+            continue
+        if not tid or tid in exclude:
+            continue
+        if tk != kind:
+            continue
+        scored.append((conf, tid))
+    scored.sort(reverse=True)
+    ordered = [tid for _, tid in scored]
+
+    # Backfill with fallback ranked ids (no kind guarantee, but helps if classifier is empty)
+    for c in fallback_ranked:
+        if c.table_id in exclude:
+            continue
+        if c.table_id not in ordered:
+            ordered.append(c.table_id)
+    return ordered
 
 def _extract_row_value_for_year(
     grid: List[List[str]],
@@ -242,6 +281,22 @@ def run_pipeline(
             (t_art / "retrieved_snippets.json").write_text(json.dumps(snippets, indent=2, ensure_ascii=False), encoding="utf-8")
             _trace_append(t_art, {"stage": "scout", "n_headings": len(scout.get("headings", [])), "n_snippets": len(snippets)})
 
+            # Step 2.5: classify candidates into table kinds for routing
+            ranked_candidates = rank_candidates_for_financial_tables(candidates)
+            classifications = classify_table_candidates(
+                llm,
+                ticker=ticker,
+                company_name=company_name,
+                candidates=candidates,
+                scout=scout,
+                snippets=snippets,
+                max_candidates=60,
+            )
+            (t_art / "table_classifications.json").write_text(
+                json.dumps(classifications, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            _trace_append(t_art, {"stage": "classify", "classifications": classifications})
+
             # ReAct loop for segment revenue table
             seg_choice: Dict[str, Any] = {}
             seg_layout: Dict[str, Any] = {}
@@ -250,17 +305,37 @@ def run_pipeline(
             validation = None
             ambiguous = False
 
+            # Prefer tables classified as segment_revenue
+            seg_table_queue = _pick_best_by_kind(
+                classifications,
+                kind="segment_revenue",
+                fallback_ranked=ranked_candidates[:80],
+            )
+            seg_queue_idx = 0
+
             for it in range(1, max_react_iters + 1):
-                print(f"[{ticker}] selecting segment table (iter {it})...", flush=True)
-                _trace_append(t_art, {"stage": "segment_select_request", "iter": it})
-                seg_choice = select_segment_revenue_table(
-                    llm,
-                    ticker=ticker,
-                    company_name=company_name,
-                    candidates=candidates,
-                    scout=scout,
-                    snippets=snippets,
-                )
+                # Table selection: try classified queue first, otherwise fall back to selector LLM
+                chosen_table_id = ""
+                if seg_queue_idx < len(seg_table_queue):
+                    chosen_table_id = seg_table_queue[seg_queue_idx]
+                    seg_queue_idx += 1
+                    seg_choice = {
+                        "table_id": chosen_table_id,
+                        "kind": "segment_revenue",
+                        "confidence": 0.5,
+                        "rationale": "Chosen from TableClassifierAgent segment_revenue queue",
+                    }
+                else:
+                    print(f"[{ticker}] selecting segment table via LLM (iter {it})...", flush=True)
+                    _trace_append(t_art, {"stage": "segment_select_request", "iter": it})
+                    seg_choice = select_segment_revenue_table(
+                        llm,
+                        ticker=ticker,
+                        company_name=company_name,
+                        candidates=candidates,
+                        scout=scout,
+                        snippets=snippets,
+                    )
                 (t_art / f"segment_choice_iter{it}.json").write_text(
                     json.dumps(seg_choice, indent=2, ensure_ascii=False), encoding="utf-8"
                 )
@@ -299,6 +374,19 @@ def run_pipeline(
                 _trace_append(t_art, {"stage": "segment_layout", "iter": it, "table_id": table_id, "layout": seg_layout})
 
                 seg_year, seg_values = extract_revenue_rows_from_grid(grid, layout=seg_layout)
+                # Hard validator: revenue tables must not be negative
+                if _has_negative(seg_values):
+                    _trace_append(
+                        t_art,
+                        {
+                            "stage": "segment_reject",
+                            "iter": it,
+                            "table_id": table_id,
+                            "reason": "negative_values",
+                        },
+                    )
+                    ambiguous = True
+                    continue
                 # Validate vs total revenue (primary: income statement; fallback: SEC companyfacts)
                 total_rev: Optional[int] = None
                 if income_cand is not None:
@@ -419,19 +507,16 @@ def run_pipeline(
                 )
 
             # CSV4: additional revenue tables
-            print(f"[{ticker}] selecting other revenue tables (LLM)...", flush=True)
-            other = select_other_revenue_tables(
-                llm,
-                ticker=ticker,
-                company_name=company_name,
-                candidates=candidates,
-                scout=scout,
-                snippets=snippets,
-                exclude_table_ids=[str(seg_choice.get("table_id") or "")],
-            )
-            (t_art / "other_revenue_tables.json").write_text(
-                json.dumps(other, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            # Prefer product/service revenue tables for CSV4 based on classification
+            seg_tid = str(seg_choice.get("table_id") or "")
+            csv4_queue = _pick_best_by_kind(
+                classifications,
+                kind="product_service_revenue",
+                fallback_ranked=ranked_candidates[:120],
+                exclude={seg_tid} if seg_tid else set(),
+            )[:2]
+            other = {"tables": [{"table_id": tid, "kind": "revenue_by_product_service", "confidence": 0.5} for tid in csv4_queue]}
+            (t_art / "other_revenue_tables.json").write_text(json.dumps(other, indent=2, ensure_ascii=False), encoding="utf-8")
             _trace_append(t_art, {"stage": "other_tables_select", "tables": other})
 
             for tinfo in (other.get("tables") or []):
@@ -455,6 +540,9 @@ def run_pipeline(
                 )
 
                 year, values = extract_revenue_rows_from_grid(grid, layout=layout)
+                if _has_negative(values):
+                    _trace_append(t_art, {"stage": "csv4_reject", "table_id": table_id, "reason": "negative_values"})
+                    continue
                 for label, rev in values.items():
                     csv4_rows.append(
                         {

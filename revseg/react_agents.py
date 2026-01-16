@@ -196,6 +196,63 @@ def select_segment_revenue_table(
     return out
 
 
+TABLE_KINDS = [
+    "segment_revenue",
+    "product_service_revenue",
+    "geography_revenue",
+    "segment_results_of_operations",
+    "other",
+]
+
+
+def classify_table_candidates(
+    llm: OpenAIChatClient,
+    *,
+    ticker: str,
+    company_name: str,
+    candidates: List[TableCandidate],
+    scout: Dict[str, Any],
+    snippets: List[str],
+    max_candidates: int = 60,
+) -> Dict[str, Any]:
+    """Classify top candidates into a strict table_kind enum for routing (CSV1 vs CSV4)."""
+    ranked = rank_candidates_for_financial_tables(candidates)[:max_candidates]
+    payload = [_candidate_summary(c) for c in ranked]
+
+    system = (
+        "You are a financial filings analyst. Classify each table candidate into a strict table_kind enum.\n"
+        "Definitions:\n"
+        "- segment_revenue: revenue by reportable segment/business segment (CSV1 target)\n"
+        "- product_service_revenue: revenue by product/service offerings or disaggregation (CSV4 target)\n"
+        "- geography_revenue: revenue by geography/region/country\n"
+        "- segment_results_of_operations: segment operating income/costs/expenses (often confused; NOT CSV1)\n"
+        "- other: anything else\n"
+        "Output STRICT JSON ONLY."
+    )
+    user = json.dumps(
+        {
+            "ticker": ticker,
+            "company_name": company_name,
+            "retrieved_snippets": snippets[:8],
+            "headings": scout.get("headings", [])[:30],
+            "table_candidates": payload,
+            "table_kind_enum": TABLE_KINDS,
+            "output_schema": {
+                "tables": [
+                    {
+                        "table_id": "tXXXX",
+                        "table_kind": "one of table_kind_enum",
+                        "confidence": "0..1",
+                        "rationale": "short string",
+                    }
+                ]
+            },
+        },
+        ensure_ascii=False,
+    )
+    return llm.json_call(system=system, user=user, max_output_tokens=1200)
+
+
 def select_other_revenue_tables(
     llm: OpenAIChatClient,
     *,
