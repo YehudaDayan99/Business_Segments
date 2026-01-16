@@ -180,6 +180,103 @@ def _keyword_hints_for_ticker(ticker: str) -> List[str]:
     return []
 
 
+def _canonicalize_business_lines(ticker: str, segments: List[str]) -> List[str]:
+    t = ticker.upper()
+    out: List[str] = []
+    for s in segments:
+        ss = str(s or "").strip()
+        if not ss:
+            continue
+        out.append(ss)
+
+    if t == "AAPL":
+        # Normalize to filing's canonical labels
+        canon = []
+        for s in out:
+            low = s.lower()
+            if "iphone" == low:
+                canon.append("iPhone")
+            elif "mac" == low:
+                canon.append("Mac")
+            elif "ipad" == low:
+                canon.append("iPad")
+            elif "wear" in low:
+                canon.append("Wearables, Home and Accessories")
+            elif "service" in low:
+                canon.append("Services")
+            else:
+                canon.append(s)
+        # de-dupe preserving order
+        seen = set()
+        dedup = []
+        for s in canon:
+            if s.lower() in seen:
+                continue
+            seen.add(s.lower())
+            dedup.append(s)
+        return dedup
+
+    return out
+
+
+def _normalize_label_for_match(label: str) -> str:
+    s = str(label or "").strip()
+    if not s:
+        return ""
+    # strip common footnotes like "Services (1)" or "EMEA (1)"
+    s = s.split(" (")[0].strip()
+    return s
+
+
+def _infer_segment_from_item(item: str, segments: List[str]) -> str:
+    it = _normalize_label_for_match(item).lower()
+    for seg in segments:
+        s = seg.lower()
+        if it.startswith(s):
+            return seg
+    return ""
+
+
+def _looks_like_geography_table(rows: List[Dict[str, Any]]) -> bool:
+    labs = " ".join([str(r.get("item") or "") for r in rows]).lower()
+    geo_hits = 0
+    for kw in ["united states", "emea", "apac", "other americas", "china", "japan", "europe"]:
+        if kw in labs:
+            geo_hits += 1
+    return geo_hits >= 2
+
+
+def _business_line_overlap_score(
+    *,
+    ticker: str,
+    dimension: str,
+    rows: List[Dict[str, Any]],
+    segments: List[str],
+) -> int:
+    """Count how many business lines we can match in extracted rows (used to reject wrong tables)."""
+    seg_set = {s.lower() for s in segments}
+    matched = set()
+    if dimension == "product_category":
+        for r in rows:
+            item = _normalize_label_for_match(r.get("item") or "")
+            if item.lower() in seg_set:
+                matched.add(item.lower())
+        return len(matched)
+
+    # reportable_segments
+    for r in rows:
+        seg = str(r.get("segment") or "").strip()
+        item = str(r.get("item") or "").strip()
+        if seg:
+            if seg.lower() in seg_set:
+                matched.add(seg.lower())
+        else:
+            inf = _infer_segment_from_item(item, segments)
+            if inf:
+                matched.add(inf.lower())
+    return len(matched)
+
+
 def _pick_income_statement_candidate(candidates: List[TableCandidate]) -> Optional[TableCandidate]:
     """Heuristic pick: table whose preview mentions Revenue + Net income/Operating income."""
     best: Optional[TableCandidate] = None
@@ -376,7 +473,7 @@ def run_pipeline(
             (t_art / "business_lines.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=False), encoding="utf-8")
             _trace_append(t_art, {"stage": "discover", "discovery": discovery})
 
-            segments: List[str] = list(discovery.get("segments") or [])
+            segments: List[str] = _canonicalize_business_lines(ticker, list(discovery.get("segments") or []))
             include_optional: List[str] = list(discovery.get("include_segments_optional") or [])
 
             # Select the disaggregation table (most granular revenue table with Total row)
@@ -451,6 +548,23 @@ def run_pipeline(
 
                 if not attempt_rows:
                     continue
+                # Reject geography-only tables for tickers where we want business lines
+                if _looks_like_geography_table(attempt_rows) and ticker.upper() in {"GOOGL", "MSFT"}:
+                    continue
+
+                # Require overlap with intended business lines (prevents index tables and wrong disclosures)
+                dim = str(discovery.get("dimension") or "")
+                overlap = _business_line_overlap_score(
+                    ticker=ticker, dimension=dim, rows=attempt_rows, segments=segments
+                )
+                if dim == "product_category":
+                    # AAPL needs at least 4/5 categories present
+                    if overlap < max(3, min(4, len(segments) - 1)):
+                        continue
+                else:
+                    # MSFT/GOOGL: need at least 2 segments matched
+                    if overlap < 2:
+                        continue
                 # Allow negatives only for optional/corporate adjustments; otherwise reject.
                 bad = False
                 for r in attempt_rows:
@@ -470,16 +584,38 @@ def run_pipeline(
                         if not raw_item:
                             continue
                         # normalize footnotes like "Services (1)" -> "Services"
-                        item = raw_item.split(" (")[0].strip()
+                        item = _normalize_label_for_match(raw_item)
                         key = item.lower()
                         if key not in seg_norm:
                             continue
                         canon = seg_norm[key]
                         attempt_seg_totals[canon] = attempt_seg_totals.get(canon, 0) + int(r.get("value") or 0)
                 else:
+                    # Prefer explicit segment totals (e.g., "Google Services total") to avoid double counting.
+                    totals_by_seg: Dict[str, int] = {}
                     for r in attempt_rows:
-                        s = str(r.get("segment") or "").strip() or "Other"
-                        attempt_seg_totals[s] = attempt_seg_totals.get(s, 0) + int(r.get("value") or 0)
+                        seg = str(r.get("segment") or "").strip()
+                        item = str(r.get("item") or "").strip()
+                        if not seg:
+                            seg = _infer_segment_from_item(item, segments) or ""
+                        if not seg:
+                            continue
+                        norm_item = (item or "").lower()
+                        if "total" in norm_item and seg.lower() in norm_item:
+                            totals_by_seg[seg] = int(r.get("value") or 0)
+
+                    if totals_by_seg:
+                        attempt_seg_totals = totals_by_seg
+                    else:
+                        for r in attempt_rows:
+                            seg = str(r.get("segment") or "").strip()
+                            item = str(r.get("item") or "").strip()
+                            if not seg:
+                                seg = _infer_segment_from_item(item, segments) or "Other"
+                            # skip subtotal/total lines when summing by segment
+                            if "total" in (item or "").lower():
+                                continue
+                            attempt_seg_totals[seg] = attempt_seg_totals.get(seg, 0) + int(r.get("value") or 0)
 
                 total_rev = int(attempt_total) if attempt_total is not None else None
                 if total_rev is None:
