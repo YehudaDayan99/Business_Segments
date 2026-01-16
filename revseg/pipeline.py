@@ -425,23 +425,26 @@ def run_pipeline(
                 cand = next((c for c in candidates if c.table_id == attempt_id), None)
                 if cand is None:
                     continue
-                grid = extract_table_grid_normalized(html_path, attempt_id)
-                layout = infer_disaggregation_layout(
-                    llm,
-                    ticker=ticker,
-                    company_name=company_name,
-                    table_id=attempt_id,
-                    candidate=cand,
-                    grid=grid,
-                    business_lines=segments,
-                )
-                layout = _override_layout_with_heuristics(grid=grid, layout=layout, segments=segments + include_optional)
+                try:
+                    grid = extract_table_grid_normalized(html_path, attempt_id)
+                    layout = infer_disaggregation_layout(
+                        llm,
+                        ticker=ticker,
+                        company_name=company_name,
+                        table_id=attempt_id,
+                        candidate=cand,
+                        grid=grid,
+                        business_lines=segments,
+                    )
+                    layout = _override_layout_with_heuristics(grid=grid, layout=layout, segments=segments + include_optional)
 
-                extracted = extract_disaggregation_rows_from_grid(
-                    grid,
-                    layout=layout,
-                    business_lines=segments + include_optional,
-                )
+                    extracted = extract_disaggregation_rows_from_grid(
+                        grid,
+                        layout=layout,
+                        business_lines=segments + include_optional,
+                    )
+                except Exception:
+                    continue
                 attempt_rows = extracted.get("rows") or []
                 attempt_total = extracted.get("total_value")
                 attempt_year = int(extracted["year"])
@@ -461,10 +464,18 @@ def run_pipeline(
                 # Aggregate segment totals
                 attempt_seg_totals: Dict[str, int] = {}
                 if str(discovery.get("dimension")) == "product_category":
+                    seg_norm = {s.lower(): s for s in segments}
                     for r in attempt_rows:
-                        s = str(r.get("item") or "").strip()
-                        if s:
-                            attempt_seg_totals[s] = attempt_seg_totals.get(s, 0) + int(r.get("value") or 0)
+                        raw_item = str(r.get("item") or "").strip()
+                        if not raw_item:
+                            continue
+                        # normalize footnotes like "Services (1)" -> "Services"
+                        item = raw_item.split(" (")[0].strip()
+                        key = item.lower()
+                        if key not in seg_norm:
+                            continue
+                        canon = seg_norm[key]
+                        attempt_seg_totals[canon] = attempt_seg_totals.get(canon, 0) + int(r.get("value") or 0)
                 else:
                     for r in attempt_rows:
                         s = str(r.get("segment") or "").strip() or "Other"
