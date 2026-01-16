@@ -276,6 +276,10 @@ def _business_line_overlap_score(
                 matched.add(inf.lower())
     return len(matched)
 
+def _is_corporate_adjustment_item(item: str) -> bool:
+    t = str(item or "").lower()
+    return ("hedging" in t) or ("corporate" in t)
+
 
 def _pick_income_statement_candidate(candidates: List[TableCandidate]) -> Optional[TableCandidate]:
     """Heuristic pick: table whose preview mentions Revenue + Net income/Operating income."""
@@ -429,6 +433,7 @@ def run_pipeline(
         t_art.mkdir(parents=True, exist_ok=True)
 
         try:
+            print(f"[{ticker}] start", flush=True)
             filing_dir = _ensure_filing_dir(ticker, base_dir=filings_base_dir, cache_dir=cache_dir)
             html_path = find_primary_document_html(filing_dir)
             company_name = _read_company_name_from_submission(filing_dir) or ticker
@@ -475,6 +480,7 @@ def run_pipeline(
 
             segments: List[str] = _canonicalize_business_lines(ticker, list(discovery.get("segments") or []))
             include_optional: List[str] = list(discovery.get("include_segments_optional") or [])
+            print(f"[{ticker}] business lines: {segments} (optional={include_optional})", flush=True)
 
             # Select the disaggregation table (most granular revenue table with Total row)
             choice = select_revenue_disaggregation_table(
@@ -493,6 +499,7 @@ def run_pipeline(
             if not preferred_table_id:
                 per["errors"].append("No disaggregation table selected")
                 continue
+            print(f"[{ticker}] preferred table: {preferred_table_id}", flush=True)
 
             # Build a ranked fallback list by keyword hits in candidate context
             hints = [h.lower() for h in _keyword_hints_for_ticker(ticker)]
@@ -519,6 +526,7 @@ def run_pipeline(
             table_id = ""
 
             for attempt_id in candidate_table_ids:
+                print(f"[{ticker}] try table {attempt_id} ...", flush=True)
                 cand = next((c for c in candidates if c.table_id == attempt_id), None)
                 if cand is None:
                     continue
@@ -601,8 +609,12 @@ def run_pipeline(
                         if not seg:
                             continue
                         norm_item = (item or "").lower()
-                        if "total" in norm_item and seg.lower() in norm_item:
+                        # Accept either explicit "Segment total" rows OR direct "Segment" rows (e.g., "Google Cloud")
+                        if (("total" in norm_item and seg.lower() in norm_item) or (_normalize_label_for_match(item).lower() == seg.lower())):
                             totals_by_seg[seg] = int(r.get("value") or 0)
+                        # Allow corporate adjustments (hedging gains/losses) to contribute to Corporate if requested
+                        if include_optional and "Corporate" in include_optional and _is_corporate_adjustment_item(item):
+                            totals_by_seg["Corporate"] = totals_by_seg.get("Corporate", 0) + int(r.get("value") or 0)
 
                     if totals_by_seg:
                         attempt_seg_totals = totals_by_seg
@@ -615,6 +627,8 @@ def run_pipeline(
                             # skip subtotal/total lines when summing by segment
                             if "total" in (item or "").lower():
                                 continue
+                            if include_optional and "Corporate" in include_optional and _is_corporate_adjustment_item(item):
+                                seg = "Corporate"
                             attempt_seg_totals[seg] = attempt_seg_totals.get(seg, 0) + int(r.get("value") or 0)
 
                 total_rev = int(attempt_total) if attempt_total is not None else None
@@ -636,6 +650,7 @@ def run_pipeline(
                 validation = attempt_validation
                 (t_art / "disagg_layout.json").write_text(json.dumps(layout, indent=2, ensure_ascii=False), encoding="utf-8")
                 (t_art / "disagg_extracted.json").write_text(json.dumps(extracted, indent=2, ensure_ascii=False), encoding="utf-8")
+                print(f"[{ticker}] accepted table {table_id} year={year} segments={len(seg_totals)}", flush=True)
                 break
 
             if not rows or year is None or validation is None:
@@ -739,6 +754,7 @@ def run_pipeline(
             per["segment_year"] = year
             per["n_segments"] = len(seg_totals)
             per["validation"] = asdict(validation) if validation else None
+            print(f"[{ticker}] done", flush=True)
 
         except Exception as e:
             per["errors"].append(f"{type(e).__name__}: {e}")
