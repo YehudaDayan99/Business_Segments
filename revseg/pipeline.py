@@ -12,14 +12,13 @@ from bs4 import BeautifulSoup
 from revseg.llm_client import OpenAIChatClient
 from revseg.react_agents import (
     document_scout,
-    extract_revenue_rows_from_grid,
     extract_table_grid_normalized,
-    infer_table_layout,
     rank_candidates_for_financial_tables,
     extract_keyword_windows,
-    classify_table_candidates,
-    select_other_revenue_tables,
-    select_segment_revenue_table,
+    discover_primary_business_lines,
+    select_revenue_disaggregation_table,
+    infer_disaggregation_layout,
+    extract_disaggregation_rows_from_grid,
     summarize_segment_descriptions,
     expand_key_items_per_segment,
 )
@@ -97,6 +96,59 @@ def _trace_append(t_art: Path, event: Dict[str, Any]) -> None:
     trace_path = t_art / "trace.jsonl"
     with trace_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+def _override_layout_with_heuristics(
+    *,
+    grid: List[List[str]],
+    layout: Dict[str, Any],
+    segments: List[str],
+) -> Dict[str, Any]:
+    """Fix common LLM layout mistakes deterministically (AAPL-style tables)."""
+    import re
+
+    # pad
+    max_len = max((len(r) for r in grid), default=0)
+    if max_len > 0:
+        grid = [list(r) + [""] * (max_len - len(r)) for r in grid]
+
+    seg_set = {s.lower() for s in segments}
+
+    def score_col_for_values(col: int) -> int:
+        hits = 0
+        for r in grid[:50]:
+            if col < len(r):
+                v = str(r[col] or "").strip().lower()
+                if v in seg_set:
+                    hits += 1
+        return hits
+
+    # Fix item_col: choose col among first 3 with max segment-name hits (works for AAPL)
+    cand_cols = list(range(0, min(3, max_len)))
+    if cand_cols:
+        best = max(cand_cols, key=score_col_for_values)
+        if score_col_for_values(best) > 0:
+            layout["item_col"] = int(best)
+            # If segment_col was null, keep it null; if segment_col equals item_col, null it.
+            if layout.get("segment_col") is not None and int(layout["segment_col"]) == int(best):
+                layout["segment_col"] = None
+
+    # Fix year_cols: detect recent years in first 8 rows
+    year_re = re.compile(r"\b(20\d{2})\b")
+    year_cols: Dict[str, int] = {}
+    for r in grid[:8]:
+        for ci, cell in enumerate(r):
+            m = year_re.search(str(cell or ""))
+            if not m:
+                continue
+            y = int(m.group(1))
+            if y < 2018 or y > 2100:
+                continue
+            # prefer first seen
+            year_cols.setdefault(str(y), int(ci))
+    if len(year_cols) >= 2:
+        layout["year_cols"] = year_cols
+    return layout
 
 
 def _pick_income_statement_candidate(candidates: List[TableCandidate]) -> Optional[TableCandidate]:
@@ -288,194 +340,127 @@ def run_pipeline(
             (t_art / "retrieved_snippets.json").write_text(json.dumps(snippets, indent=2, ensure_ascii=False), encoding="utf-8")
             _trace_append(t_art, {"stage": "scout", "n_headings": len(scout.get("headings", [])), "n_snippets": len(snippets)})
 
-            # Step 2.5: classify candidates into table kinds for routing
-            ranked_candidates = rank_candidates_for_financial_tables(candidates)
-            classifications = classify_table_candidates(
+            # NEW POC FLOW: text-first discovery -> revenue disaggregation table -> deterministic extraction
+            discovery = discover_primary_business_lines(
+                llm, ticker=ticker, company_name=company_name, snippets=snippets
+            )
+            (t_art / "business_lines.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=False), encoding="utf-8")
+            _trace_append(t_art, {"stage": "discover", "discovery": discovery})
+
+            segments: List[str] = list(discovery.get("segments") or [])
+            include_optional: List[str] = list(discovery.get("include_segments_optional") or [])
+
+            # Select the disaggregation table (most granular revenue table with Total row)
+            choice = select_revenue_disaggregation_table(
                 llm,
                 ticker=ticker,
                 company_name=company_name,
                 candidates=candidates,
                 scout=scout,
                 snippets=snippets,
-                max_candidates=60,
+                segments=segments,
             )
-            (t_art / "table_classifications.json").write_text(
-                json.dumps(classifications, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-            _trace_append(t_art, {"stage": "classify", "classifications": classifications})
-
-            # ReAct loop for segment revenue table
-            seg_choice: Dict[str, Any] = {}
-            seg_layout: Dict[str, Any] = {}
-            seg_year: Optional[int] = None
-            seg_values: Dict[str, int] = {}
-            validation = None
-            ambiguous = False
-
-            # Prefer tables classified as segment_revenue
-            seg_table_queue = _pick_best_by_kind(
-                classifications,
-                kind="segment_revenue",
-                fallback_ranked=ranked_candidates[:80],
-            )
-            seg_queue_idx = 0
-
-            for it in range(1, max_react_iters + 1):
-                # Table selection: try classified queue first, otherwise fall back to selector LLM
-                chosen_table_id = ""
-                if seg_queue_idx < len(seg_table_queue):
-                    chosen_table_id = seg_table_queue[seg_queue_idx]
-                    seg_queue_idx += 1
-                    seg_choice = {
-                        "table_id": chosen_table_id,
-                        "kind": "segment_revenue",
-                        "confidence": 0.5,
-                        "rationale": "Chosen from TableClassifierAgent segment_revenue queue",
-                    }
-                else:
-                    print(f"[{ticker}] selecting segment table via LLM (iter {it})...", flush=True)
-                    _trace_append(t_art, {"stage": "segment_select_request", "iter": it})
-                    seg_choice = select_segment_revenue_table(
-                        llm,
-                        ticker=ticker,
-                        company_name=company_name,
-                        candidates=candidates,
-                        scout=scout,
-                        snippets=snippets,
-                    )
-                (t_art / f"segment_choice_iter{it}.json").write_text(
-                    json.dumps(seg_choice, indent=2, ensure_ascii=False), encoding="utf-8"
-                )
-                _trace_append(t_art, {"stage": "segment_select", "iter": it, "choice": seg_choice})
-
-                if seg_choice.get("kind") == "not_found":
-                    per["errors"].append("Segment revenue table not found by LLM")
-                    ambiguous = True
-                    break
-
-                table_id = str(seg_choice.get("table_id") or "")
-                if not table_id:
-                    per["errors"].append("LLM did not return table_id")
-                    ambiguous = True
-                    break
-
-                cand = next((c for c in candidates if c.table_id == table_id), None)
-                if cand is None:
-                    per["errors"].append(f"LLM returned unknown table_id: {table_id}")
-                    ambiguous = True
-                    break
-
-                print(f"[{ticker}] inferring layout for {table_id} (iter {it})...", flush=True)
-                grid = extract_table_grid_normalized(html_path, table_id)
-                seg_layout = infer_table_layout(
-                    llm,
-                    ticker=ticker,
-                    company_name=company_name,
-                    table_id=table_id,
-                    candidate=cand,
-                    grid=grid,
-                )
-                (t_art / f"segment_layout_iter{it}.json").write_text(
-                    json.dumps(seg_layout, indent=2, ensure_ascii=False), encoding="utf-8"
-                )
-                _trace_append(t_art, {"stage": "segment_layout", "iter": it, "table_id": table_id, "layout": seg_layout})
-
-                seg_year, seg_values = extract_revenue_rows_from_grid(grid, layout=seg_layout)
-                if not _is_nonempty_revenue_set(seg_values, min_rows=2):
-                    _trace_append(
-                        t_art,
-                        {
-                            "stage": "segment_reject",
-                            "iter": it,
-                            "table_id": table_id,
-                            "reason": "empty_or_zero_extraction",
-                        },
-                    )
-                    ambiguous = True
-                    continue
-                # Hard validator: revenue tables must not be negative
-                if _has_negative(seg_values):
-                    _trace_append(
-                        t_art,
-                        {
-                            "stage": "segment_reject",
-                            "iter": it,
-                            "table_id": table_id,
-                            "reason": "negative_values",
-                        },
-                    )
-                    ambiguous = True
-                    continue
-                # Validate vs total revenue (primary: income statement; fallback: SEC companyfacts)
-                total_rev: Optional[int] = None
-                if income_cand is not None:
-                    try:
-                        print(f"[{ticker}] extracting total revenue from income statement {income_cand.table_id}...", flush=True)
-                        inc_grid = extract_table_grid_normalized(html_path, income_cand.table_id)
-                        inc_layout = infer_table_layout(
-                            llm,
-                            ticker=ticker,
-                            company_name=company_name,
-                            table_id=income_cand.table_id,
-                            candidate=income_cand,
-                            grid=inc_grid,
-                        )
-                        (t_art / f"income_statement_layout_{income_cand.table_id}.json").write_text(
-                            json.dumps(inc_layout, indent=2, ensure_ascii=False), encoding="utf-8"
-                        )
-                        total_rev = _extract_row_value_for_year(
-                            inc_grid, layout=inc_layout, row_label_regex=r"^revenue[s]?$", year=seg_year
-                        )
-                    except Exception:
-                        total_rev = None
-                if total_rev is None:
-                    print(f"[{ticker}] income statement total not found; falling back to SEC companyfacts...", flush=True)
-                    total_rev = fetch_companyfacts_total_revenue_usd(cik, seg_year)
-                validation = validate_segment_table(
-                    segment_revenues_usd=seg_values,
-                    total_revenue_usd=total_rev,
-                    tolerance_pct=validation_tolerance_pct,
-                )
-                (t_art / f"segment_validation_iter{it}.json").write_text(
-                    json.dumps(asdict(validation), indent=2), encoding="utf-8"
-                )
-                _trace_append(t_art, {"stage": "segment_validate", "iter": it, "year": seg_year, "validation": asdict(validation)})
-
-                if validation.ok:
-                    break
-                ambiguous = True
-
-            if not seg_values or seg_year is None:
-                per["errors"].append("Failed to extract segment revenues")
+            table_id = str(choice.get("table_id") or "")
+            (t_art / "disagg_choice.json").write_text(json.dumps(choice, indent=2, ensure_ascii=False), encoding="utf-8")
+            _trace_append(t_art, {"stage": "disagg_select", "choice": choice})
+            if not table_id:
+                per["errors"].append("No disaggregation table selected")
                 continue
-            # Require total revenue reconciliation for CSV1
-            if validation is None or not validation.ok:
-                per["errors"].append(
-                    "Segments did not reconcile to total revenue; marking ambiguous and skipping CSV outputs for this ticker."
-                )
+
+            cand = next((c for c in candidates if c.table_id == table_id), None)
+            if cand is None:
+                per["errors"].append(f"Selected disaggregation table_id not found: {table_id}")
+                continue
+
+            grid = extract_table_grid_normalized(html_path, table_id)
+            layout = infer_disaggregation_layout(
+                llm,
+                ticker=ticker,
+                company_name=company_name,
+                table_id=table_id,
+                candidate=cand,
+                grid=grid,
+                business_lines=segments,
+            )
+            layout = _override_layout_with_heuristics(grid=grid, layout=layout, segments=segments + include_optional)
+            (t_art / "disagg_layout.json").write_text(json.dumps(layout, indent=2, ensure_ascii=False), encoding="utf-8")
+            _trace_append(t_art, {"stage": "disagg_layout", "layout": layout})
+
+            extracted = extract_disaggregation_rows_from_grid(
+                grid,
+                layout=layout,
+                business_lines=segments + include_optional,
+            )
+            (t_art / "disagg_extracted.json").write_text(json.dumps(extracted, indent=2, ensure_ascii=False), encoding="utf-8")
+            _trace_append(t_art, {"stage": "disagg_extract", "summary": {"n_rows": len(extracted.get("rows", [])), "total_value": extracted.get("total_value")}})
+
+            year = int(extracted["year"])
+            rows = extracted.get("rows") or []
+            table_total = extracted.get("total_value")
+
+            if not rows:
+                per["errors"].append("No rows extracted from disaggregation table")
+                continue
+            # Allow negatives only for optional/corporate adjustments; otherwise reject.
+            for r in rows:
+                seg = str(r.get("segment") or "").strip()
+                if int(r.get("value") or 0) < 0 and (seg not in include_optional and seg.lower() != "corporate"):
+                    per["errors"].append("Negative revenue rows extracted in non-corporate segment; rejecting")
+                    rows = []
+                    break
+            if not rows:
+                continue
+
+            # Aggregate to CSV1 segments:
+            seg_totals: Dict[str, int] = {}
+            if str(discovery.get("dimension")) == "product_category":
+                # For AAPL-style, item column is the business line. Segment column may be blank.
+                for r in rows:
+                    seg = str(r.get("item") or "").strip()
+                    if not seg:
+                        continue
+                    seg_totals[seg] = seg_totals.get(seg, 0) + int(r.get("value") or 0)
+            else:
+                for r in rows:
+                    seg = str(r.get("segment") or "").strip() or "Other"
+                    seg_totals[seg] = seg_totals.get(seg, 0) + int(r.get("value") or 0)
+
+            # Validate against table total first; fallback to companyfacts if missing
+            total_rev = int(table_total) if table_total is not None else None
+            if total_rev is None:
+                total_rev = fetch_companyfacts_total_revenue_usd(cik, year)
+
+            validation = validate_segment_table(
+                segment_revenues_usd=seg_totals,
+                total_revenue_usd=total_rev,
+                tolerance_pct=validation_tolerance_pct,
+            )
+            (t_art / "csv1_validation.json").write_text(json.dumps(asdict(validation), indent=2), encoding="utf-8")
+            _trace_append(t_art, {"stage": "csv1_validate", "validation": asdict(validation)})
+            if not validation.ok:
+                per["errors"].append(f"CSV1 failed validation: {validation.notes}")
                 per["ambiguous"] = True
                 continue
 
-            # CSV1 rows
-            total_for_pct = validation.total_revenue_usd or sum(seg_values.values())
-            for seg, rev in seg_values.items():
+            total_for_pct = validation.total_revenue_usd or sum(seg_totals.values())
+            for seg, rev in sorted(seg_totals.items(), key=lambda kv: kv[1], reverse=True):
                 pct = (rev / total_for_pct * 100.0) if total_for_pct else 0.0
                 csv1_rows.append(
                     {
-                        "Year": seg_year,
+                        "Year": year,
                         "Company": company_name,
                         "Ticker": ticker,
                         "Segment": seg,
                         "Income $": rev,
                         "Income %": round(pct, 4),
-                        "Primary source": f"10-K segment revenue table ({seg_choice.get('table_id')})",
+                        "Primary source": f"10-K revenue disaggregation table ({table_id})",
                         "Link": sec_doc_url,
                     }
                 )
 
             # CSV2 + CSV3 via LLM
             html_text = _html_text_for_llm(html_path)
-            seg_names = sorted(seg_values.keys())
+            seg_names = sorted(seg_totals.keys())
             print(f"[{ticker}] summarizing segment descriptions (LLM)...", flush=True)
             seg_desc = summarize_segment_descriptions(
                 llm,
@@ -527,62 +512,29 @@ def run_pipeline(
                     }
                 )
 
-            # CSV4: additional revenue tables
-            # Prefer product/service revenue tables for CSV4 based on classification
-            seg_tid = str(seg_choice.get("table_id") or "")
-            csv4_queue = _pick_best_by_kind(
-                classifications,
-                kind="product_service_revenue",
-                fallback_ranked=ranked_candidates[:120],
-                exclude={seg_tid} if seg_tid else set(),
-            )[:2]
-            other = {"tables": [{"table_id": tid, "kind": "revenue_by_product_service", "confidence": 0.5} for tid in csv4_queue]}
-            (t_art / "other_revenue_tables.json").write_text(json.dumps(other, indent=2, ensure_ascii=False), encoding="utf-8")
-            _trace_append(t_art, {"stage": "other_tables_select", "tables": other})
-
-            for tinfo in (other.get("tables") or []):
-                table_id = str(tinfo.get("table_id") or "")
-                if not table_id:
-                    continue
-                cand = next((c for c in candidates if c.table_id == table_id), None)
-                if cand is None:
-                    continue
-                grid = extract_table_grid_normalized(html_path, table_id)
-                layout = infer_table_layout(
-                    llm,
-                    ticker=ticker,
-                    company_name=company_name,
-                    table_id=table_id,
-                    candidate=cand,
-                    grid=grid,
+            # CSV4: item-level disaggregation rows (for inspection)
+            for r in rows:
+                seg = str(r.get("segment") or "").strip()
+                item = str(r.get("item") or "").strip()
+                val = int(r.get("value") or 0)
+                csv4_rows.append(
+                    {
+                        "Year": year,
+                        "Company": company_name,
+                        "Ticker": ticker,
+                        "Associated segment": seg,
+                        "Item": item,
+                        "Revenue $": val,
+                        "Table kind": "revenue_disaggregation",
+                        "Table id": table_id,
+                        "Primary source": f"10-K revenue disaggregation table ({table_id})",
+                        "Link": sec_doc_url,
+                    }
                 )
-                (t_art / f"other_layout_{table_id}.json").write_text(
-                    json.dumps(layout, indent=2, ensure_ascii=False), encoding="utf-8"
-                )
-
-                year, values = extract_revenue_rows_from_grid(grid, layout=layout)
-                if _has_negative(values):
-                    _trace_append(t_art, {"stage": "csv4_reject", "table_id": table_id, "reason": "negative_values"})
-                    continue
-                for label, rev in values.items():
-                    csv4_rows.append(
-                        {
-                            "Year": year,
-                            "Company": company_name,
-                            "Ticker": ticker,
-                            "Associated segment": "",  # best-effort later
-                            "Item": label,
-                            "Revenue $": rev,
-                            "Table kind": tinfo.get("kind", ""),
-                            "Table id": table_id,
-                            "Primary source": f"10-K revenue table ({table_id})",
-                            "Link": sec_doc_url,
-                        }
-                    )
 
             per["ok"] = True
-            per["segment_year"] = seg_year
-            per["n_segments"] = len(seg_values)
+            per["segment_year"] = year
+            per["n_segments"] = len(seg_totals)
             per["validation"] = asdict(validation) if validation else None
 
         except Exception as e:

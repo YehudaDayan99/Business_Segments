@@ -204,6 +204,231 @@ TABLE_KINDS = [
 ]
 
 
+def discover_primary_business_lines(
+    llm: OpenAIChatClient,
+    *,
+    ticker: str,
+    company_name: str,
+    snippets: List[str],
+) -> Dict[str, Any]:
+    """Text-first agent: infer primary business lines for CSV1 (Option 1).
+
+    Output contracts:
+      - dimension: product_category | reportable_segments
+      - segments: list[str] (primary business lines)
+      - include_segments_optional: list[str] (e.g., Corporate adjustments) if needed for reconciliation
+    """
+    system = (
+        "You are a financial filings analyst. Determine the primary business-line dimension for CSV1.\n"
+        "Rules:\n"
+        "- For AAPL, treat business lines as product categories (iPhone, Mac, iPad, Wearables/Home/Accessories, Services).\n"
+        "- For MSFT and GOOGL, treat business lines as reportable segments (e.g., Intelligent Cloud).\n"
+        "- If the filing includes corporate adjustments (e.g., hedging gains/losses) that are included in Total Revenues, "
+        "put that under include_segments_optional=['Corporate'].\n"
+        "Output STRICT JSON ONLY."
+    )
+    user = json.dumps(
+        {
+            "ticker": ticker,
+            "company_name": company_name,
+            "snippets": snippets[:10],
+            "few_shot_examples": [
+                {
+                    "ticker": "AAPL",
+                    "dimension": "product_category",
+                    "segments": ["iPhone", "Mac", "iPad", "Wearables, Home and Accessories", "Services"],
+                    "include_segments_optional": [],
+                },
+                {
+                    "ticker": "MSFT",
+                    "dimension": "reportable_segments",
+                    "segments": [
+                        "Productivity and Business Processes",
+                        "Intelligent Cloud",
+                        "More Personal Computing",
+                    ],
+                    "include_segments_optional": [],
+                },
+                {
+                    "ticker": "GOOGL",
+                    "dimension": "reportable_segments",
+                    "segments": ["Google Services", "Google Cloud", "Other Bets"],
+                    "include_segments_optional": ["Corporate"],
+                },
+            ],
+            "output_schema": {
+                "dimension": "product_category | reportable_segments",
+                "segments": "list[string]",
+                "include_segments_optional": "list[string]",
+                "notes": "short string",
+            },
+        },
+        ensure_ascii=False,
+    )
+    return llm.json_call(system=system, user=user, max_output_tokens=700)
+
+
+def select_revenue_disaggregation_table(
+    llm: OpenAIChatClient,
+    *,
+    ticker: str,
+    company_name: str,
+    candidates: List[TableCandidate],
+    scout: Dict[str, Any],
+    snippets: List[str],
+    segments: List[str],
+    max_candidates: int = 80,
+) -> Dict[str, Any]:
+    """Select the most granular revenue disaggregation table that includes a Total row."""
+    ranked = rank_candidates_for_financial_tables(candidates)[:max_candidates]
+    payload = [_candidate_summary(c) for c in ranked]
+    system = (
+        "You are a financial filings analyst. Select the single best table that DISAGGREGATES revenue "
+        "by business lines (segments or product categories) and includes a Total Revenue/Net Sales row.\n"
+        "Constraints:\n"
+        "- Ignore geography-only tables.\n"
+        "- Prefer Item 8 / Notes.\n"
+        "- Prefer tables whose year columns are recent fiscal years (>= 2018).\n"
+        "- Prefer tables where row/column labels overlap the provided business lines.\n"
+        "Output STRICT JSON ONLY."
+    )
+    user = json.dumps(
+        {
+            "ticker": ticker,
+            "company_name": company_name,
+            "business_lines": segments,
+            "headings": scout.get("headings", [])[:40],
+            "retrieved_snippets": snippets[:10],
+            "table_candidates": payload,
+            "output_schema": {
+                "table_id": "tXXXX",
+                "confidence": "0..1",
+                "rationale": "short string",
+            },
+        },
+        ensure_ascii=False,
+    )
+    return llm.json_call(system=system, user=user, max_output_tokens=700)
+
+
+def infer_disaggregation_layout(
+    llm: OpenAIChatClient,
+    *,
+    ticker: str,
+    company_name: str,
+    table_id: str,
+    candidate: TableCandidate,
+    grid: List[List[str]],
+    business_lines: List[str],
+    max_rows_for_llm: int = 40,
+) -> Dict[str, Any]:
+    """Infer layout for tables like:
+    - AAPL: Category | Product/Service | FY2025 | FY2024 | ...
+    - MSFT/GOOGL: Segment | Product/Service | FY... | ...
+    """
+    preview = grid[:max_rows_for_llm]
+    system = (
+        "You analyze a revenue disaggregation table from a 10-K. "
+        "Identify which columns correspond to Segment (optional), Item/Product (required), and years, "
+        "and how to identify the Total row.\n"
+        "Important: year columns should be recent fiscal years (>= 2018) and usually appear as FY2025/FY2024 or 2025/2024.\n"
+        "Output STRICT JSON ONLY."
+    )
+    user = json.dumps(
+        {
+            "ticker": ticker,
+            "company_name": company_name,
+            "table_id": table_id,
+            "business_lines": business_lines,
+            "candidate_summary": _candidate_summary(candidate),
+            "table_grid_preview": preview,
+            "output_schema": {
+                "segment_col": "int|null (e.g., 0 for Segment; null if no segment column)",
+                "item_col": "int (e.g., Product / Service column)",
+                "year_cols": {"YYYY": "int column index"},
+                "header_rows": "list[int]",
+                "total_row_regex": "string regex matching the Total row label (e.g., Total Revenues|Total Net Sales)",
+                "exclude_row_regex": "string regex for rows to exclude (e.g., Hedging gains)",
+                "units_multiplier": "int (1, 1000, 1000000, 1000000000)",
+                "notes": "short string",
+            },
+        },
+        ensure_ascii=False,
+    )
+    return llm.json_call(system=system, user=user, max_output_tokens=900)
+
+
+def extract_disaggregation_rows_from_grid(
+    grid: List[List[str]],
+    *,
+    layout: Dict[str, Any],
+    target_year: Optional[int] = None,
+    business_lines: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Deterministically extract (segment,item,value) rows and a table total."""
+    # Pad rows so column indices inferred from a wide header row work across short rows.
+    max_len = max((len(r) for r in grid), default=0)
+    if max_len > 0:
+        grid = [list(r) + [""] * (max_len - len(r)) for r in grid]
+
+    seg_col = layout.get("segment_col")
+    seg_col = int(seg_col) if seg_col is not None else None
+    item_col = int(layout["item_col"])
+    year_cols_raw = layout.get("year_cols") or {}
+    year_cols: Dict[int, int] = {int(y): int(ci) for y, ci in year_cols_raw.items()}
+    if not year_cols:
+        raise ValueError("No year_cols detected")
+    year = target_year or max(year_cols.keys())
+    if year not in year_cols:
+        year = max(year_cols.keys())
+    val_col = year_cols[year]
+
+    header_rows = set(int(i) for i in (layout.get("header_rows") or []))
+    total_re = re.compile(layout.get("total_row_regex") or r"total", re.IGNORECASE)
+    exclude_re = re.compile(layout.get("exclude_row_regex") or r"$^", re.IGNORECASE)
+    mult = int(layout.get("units_multiplier") or 1)
+    if mult <= 0:
+        mult = 1
+
+    bl_norm = {b.lower(): b for b in (business_lines or [])}
+    def _is_business_line(s: str) -> bool:
+        if not bl_norm:
+            return True
+        return s.lower() in bl_norm
+
+    rows: List[Dict[str, Any]] = []
+    total_val: Optional[int] = None
+
+    for r_i, row in enumerate(grid):
+        if r_i in header_rows:
+            continue
+        if item_col >= len(row) or val_col >= len(row):
+            continue
+        seg = _clean(row[seg_col]) if seg_col is not None and seg_col < len(row) else ""
+        item = _clean(row[item_col])
+        if not item:
+            continue
+        if exclude_re.search(item) or exclude_re.search(seg):
+            continue
+
+        raw_val = _parse_money_to_int(row[val_col])
+        if raw_val is None:
+            continue
+        val = int(raw_val) * mult
+
+        if total_re.search(item) or total_re.search(seg):
+            total_val = val
+            continue
+
+        if seg and not _is_business_line(seg) and seg.lower() != "corporate":
+            # keep corporate as optional; otherwise require match if business lines provided
+            continue
+
+        rows.append({"segment": seg, "item": item, "value": val, "year": year})
+
+    return {"year": year, "rows": rows, "total_value": total_val}
+
+
 def classify_table_candidates(
     llm: OpenAIChatClient,
     *,
