@@ -285,6 +285,43 @@ def _looks_like_geography_table(rows: List[Dict[str, Any]]) -> bool:
     return geo_hits >= 2
 
 
+def _pick_segment_results_candidate(candidates: List[TableCandidate], *, segments: List[str]) -> Optional[str]:
+    """Heuristic pick for 'segment results of operations' tables that contain a Revenue line per segment."""
+    seg_set = {s.lower() for s in segments}
+    best_tid: Optional[str] = None
+    best_score = -1.0
+    for c in candidates:
+        blob = " ".join(
+            [
+                " ".join([" ".join(r) for r in (getattr(c, "preview", []) or [])[:12]]),
+                " ".join(getattr(c, "row_label_preview", []) or []),
+                str(getattr(c, "caption_text", "") or ""),
+                str(getattr(c, "heading_context", "") or ""),
+                str(getattr(c, "nearby_text_context", "") or ""),
+            ]
+        ).lower()
+        # Must mention revenue as a row label or in preview
+        if "revenue" not in blob:
+            continue
+
+        score = 0.0
+        # Segment labels present
+        hits = sum(1 for s in seg_set if s and s in blob)
+        score += hits * 4.0
+        # "Segment results of operations" phrase is strong signal
+        if "segment results" in blob or "results of operations" in blob:
+            score += 6.0
+        # Prefer Item 8 / notes
+        score += float(getattr(c, "money_cell_ratio", 0.0)) * 3.0
+        score += float(getattr(c, "numeric_cell_ratio", 0.0)) * 1.0
+        if getattr(c, "has_year_header", False):
+            score += 2.0
+        if score > best_score:
+            best_score = score
+            best_tid = c.table_id
+    return best_tid
+
+
 def _business_line_overlap_score(
     *,
     ticker: str,
@@ -551,15 +588,23 @@ def run_pipeline(
             # If the primary dimension is reportable segments, prefer a segment-results table
             # and extract the 'Revenue' line per segment (MSFT-style).
             if str(discovery.get("dimension") or "") == "reportable_segments":
-                seg_choice = select_segment_revenue_table(
-                    llm,
-                    ticker=ticker,
-                    company_name=company_name,
-                    candidates=candidates_for_select,
-                    scout=scout,
-                    snippets=snippets,
-                )
-                seg_table_id = str(seg_choice.get("table_id") or "")
+                seg_table_id = _pick_segment_results_candidate(candidates_for_select, segments=segments)
+                seg_choice: Dict[str, Any] = {
+                    "table_id": seg_table_id,
+                    "kind": "segment_results_of_operations",
+                    "confidence": 0.6,
+                    "rationale": "Deterministic heuristic pick for segment results table containing Revenue lines per segment.",
+                }
+                if not seg_table_id:
+                    seg_choice = select_segment_revenue_table(
+                        llm,
+                        ticker=ticker,
+                        company_name=company_name,
+                        candidates=candidates_for_select,
+                        scout=scout,
+                        snippets=snippets,
+                    )
+                    seg_table_id = str(seg_choice.get("table_id") or "")
                 if seg_table_id:
                     print(f"[{ticker}] preferred segment table: {seg_table_id}", flush=True)
                     try:
@@ -568,13 +613,16 @@ def run_pipeline(
                             seg_grid, segments=segments
                         )
                         year = int(seg_extracted["year"])
-                        seg_totals = dict(seg_extracted["segment_totals"])
+                        # MSFT segment results tables are in millions; scale to USD for validation/output
+                        units_mult = 1_000_000
+                        seg_totals = {k: int(v) * units_mult for k, v in dict(seg_extracted["segment_totals"]).items()}
                         total_rev = seg_extracted.get("total_value")
-                        if total_rev is None:
-                            total_rev = fetch_companyfacts_total_revenue_usd(cik, year)
+                        total_rev_usd = int(total_rev) * units_mult if total_rev is not None else None
+                        if total_rev_usd is None:
+                            total_rev_usd = fetch_companyfacts_total_revenue_usd(cik, year)
                         validation = validate_segment_table(
                             segment_revenues_usd=seg_totals,
-                            total_revenue_usd=total_rev,
+                            total_revenue_usd=total_rev_usd,
                             tolerance_pct=validation_tolerance_pct,
                         )
                         if validation.ok:
@@ -599,7 +647,7 @@ def run_pipeline(
                                         "Company": company_name,
                                         "Ticker": ticker,
                                         "Segment": seg,
-                                        "Income $": int(rev) * 1_000_000,  # MSFT grid values are in millions
+                                        "Income $": int(rev),
                                         "Income %": round(pct, 4),
                                         "Primary source": f"10-K segment results table ({seg_table_id})",
                                         "Link": sec_doc_url,
