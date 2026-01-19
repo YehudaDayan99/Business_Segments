@@ -37,6 +37,8 @@ POSITIVE_PATTERNS: list[re.Pattern] = [
     re.compile(r"\brevenue\b.*\bby\b.*\bproduct\b", re.IGNORECASE),
     re.compile(r"\bsignificant\s+product\s+and\s+service\s+offerings\b", re.IGNORECASE),
     re.compile(r"\bdisaggregation\b.*\brevenue\b", re.IGNORECASE),
+    re.compile(r"\btotal\s+net\s+sales\b", re.IGNORECASE),
+    re.compile(r"\btotal\s+revenues?\b", re.IGNORECASE),
 ]
 
 
@@ -72,14 +74,15 @@ def tablekind_gate(
 ) -> TableKindDecision:
     """Deterministic gate: reject common non-target tables before LLM selection."""
     blob = candidate_text_blob(c)
+    for p in positive_patterns:
+        m = p.search(blob)
+        if m:
+            # Positive allowlist overrides weaker negatives (e.g., deferred revenue lines inside a net sales table).
+            return TableKindDecision(ok=True, reason="positive_allow", positive_hit=p.pattern)
     for p in negative_patterns:
         m = p.search(blob)
         if m:
             return TableKindDecision(ok=False, reason="negative_gate", negative_hit=p.pattern)
-    for p in positive_patterns:
-        m = p.search(blob)
-        if m:
-            return TableKindDecision(ok=True, reason="positive_allow", positive_hit=p.pattern)
     # If no positive hit, still allow (we'll rely on overlap+validation), but mark as weak.
     return TableKindDecision(ok=True, reason="no_positive_hit")
 
