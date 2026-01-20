@@ -1,7 +1,7 @@
 Year,Company,Ticker,Segment,Item,Income $,Income %,Row type,Primary source,Link
 2025,Apple Inc.,AAPL,Mac,Mac,33708000000,8.0997,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
 2025,Apple Inc.,AAPL,Services,Services (1),109158000000,26.2298,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
-2025,Apple Inc.,AAPL,Wearables/Home/Accessories,"Wearables, Home and Accessories",35686000000,8.575,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
+2025,Apple Inc.,AAPL,"Wearables, Home and Accessories","Wearables, Home and Accessories",35686000000,8.575,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
 2025,Apple Inc.,AAPL,iPad,iPad,28023000000,6.7337,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
 2025,Apple Inc.,AAPL,iPhone,iPhone,209586000000,50.3618,item,10-K revenue table (t0015),https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
 2025,MICROSOFT CORP,MSFT,Intelligent Cloud,Server products and cloud services,98435000000,34.9402,item,10-K revenue table (t0073),https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm
@@ -19,3 +19,15 @@ Year,Company,Ticker,Segment,Item,Income $,Income %,Row type,Primary source,Link
 2024,Alphabet Inc.,GOOGL,Google Services,YouTube ads,36147000000,10.3334,item,10-K revenue table (t0048),https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/goog-20241231.htm
 2024,Alphabet Inc.,GOOGL,Google Services,Google Network,30359000000,8.6788,item,10-K revenue table (t0048),https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/goog-20241231.htm
 2024,Alphabet Inc.,GOOGL,Other Bets,Other Bets,1648000000,0.4711,item,10-K revenue table (t0048),https://www.sec.gov/Archives/edgar/data/1652044/000165204425000014/goog-20241231.htm
+2024,AMAZON COM INC,AMZN,AWS,AWS,107556000000,16.8594,item,10-K revenue table (t0024),https://www.sec.gov/Archives/edgar/data/1018724/000101872425000004/amzn-20241231.htm
+2024,AMAZON COM INC,AMZN,International,International,142906000000,22.4005,item,10-K revenue table (t0024),https://www.sec.gov/Archives/edgar/data/1018724/000101872425000004/amzn-20241231.htm
+2024,AMAZON COM INC,AMZN,North America,North America,387497000000,60.7401,item,10-K revenue table (t0024),https://www.sec.gov/Archives/edgar/data/1018724/000101872425000004/amzn-20241231.htm
+2024,"Meta Platforms, Inc.",META,Family of Apps,Advertising,160633000000,97.6486,item,10-K revenue table (t0031),https://www.sec.gov/Archives/edgar/data/1326801/000132680125000017/meta-20241231.htm
+2024,"Meta Platforms, Inc.",META,Family of Apps,Other revenue,1722000000,1.0468,item,10-K revenue table (t0031),https://www.sec.gov/Archives/edgar/data/1326801/000132680125000017/meta-20241231.htm
+2024,"Meta Platforms, Inc.",META,Reality Labs,Reality Labs,2146000000,1.3046,item,10-K revenue table (t0031),https://www.sec.gov/Archives/edgar/data/1326801/000132680125000017/meta-20241231.htm
+2025,NVIDIA CORP,NVDA,Automotive,Automotive,1694000000,1.2981,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm
+2025,NVIDIA CORP,NVDA,Data Center,Compute,102196000000,78.3129,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm
+2025,NVIDIA CORP,NVDA,Data Center,Networking,12990000000,9.9543,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm
+2025,NVIDIA CORP,NVDA,Gaming,Gaming,11350000000,8.6975,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm
+2025,NVIDIA CORP,NVDA,OEM and Other,OEM and Other,389000000,0.2981,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm
+2025,NVIDIA CORP,NVDA,Professional Visualization,Professional Visualization,1878000000,1.4391,item,10-K revenue table (t0059),https://www.sec.gov/Archives/edgar/data/1045810/000104581025000023/nvda-20250126.htm

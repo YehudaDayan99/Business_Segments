@@ -1,0 +1,30 @@
+{
+  "year": 2024,
+  "rows": [
+    {
+      "segment": "North America",
+      "item": "North America",
+      "value": 387497000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "International",
+      "item": "International",
+      "value": 142906000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "AWS",
+      "item": "AWS",
+      "value": 107556000000,
+      "row_type": "item"
+    }
+  ],
+  "table_total": null,
+  "segment_revenues": {
+    "North America": 387497000000,
+    "International": 142906000000,
+    "AWS": 107556000000
+  },
+  "adjustment_revenues": {}
+}

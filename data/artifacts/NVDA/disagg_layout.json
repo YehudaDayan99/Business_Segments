@@ -1,0 +1,18 @@
+{
+  "segment_col": 0,
+  "item_col": 0,
+  "year_cols": {
+    "2025": 4,
+    "2024": 9,
+    "2023": 15
+  },
+  "header_rows": [
+    1,
+    2,
+    4
+  ],
+  "total_row_regex": "^Total revenue$",
+  "exclude_row_regex": "",
+  "units_multiplier": 1000000,
+  "notes": "Segment and Item columns are the same (column 0) listing business lines; year columns correspond to recent fiscal years with revenue values in millions; total row identified by exact label 'Total revenue'."
+}

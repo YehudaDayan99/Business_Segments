@@ -24,7 +24,7 @@
     },
     {
       "segment": "More Personal Computing",
-      "segment_description": "The More Personal Computing segment includes products and services that focus on personal technology experiences. It comprises Windows and Devices (including Windows OEM licensing and Surface devices), Gaming (Xbox hardware, content, subscriptions, and cloud gaming), and Search and news advertising (Bing, Copilot, Microsoft News, Microsoft Edge). This segment aims to deliver consistent user experiences across devices, expand gaming ecosystems, and provide relevant advertising solutions.",
+      "segment_description": "The More Personal Computing segment consists of products and services that focus on personal user experience with technology. It includes Windows OEM licensing and devices such as Surface and PC accessories, gaming through Xbox hardware and content including Xbox Game Pass and Xbox Cloud Gaming, and search and news advertising via Bing, Microsoft Edge, and Microsoft News. This segment aims to deliver consistent, personal computing experiences and expand gaming and advertising ecosystems.",
       "key_products_services": [
         "Windows OEM licensing",
         "Surface",
@@ -45,7 +45,7 @@
     },
     {
       "segment": "Productivity and Business Processes",
-      "segment_description": "The Productivity and Business Processes segment offers productivity, communication, and information services across devices and platforms. It includes Microsoft 365 Commercial and Consumer products and cloud services, LinkedIn with its Talent, Marketing, Premium, and Sales Solutions, and Dynamics products and cloud services such as Dynamics 365 ERP and CRM applications. This segment focuses on AI-powered business productivity tools, professional networking, and intelligent business applications to empower organizations and individuals.",
+      "segment_description": "The Productivity and Business Processes segment includes productivity, communication, and information services across various devices and platforms. It comprises Microsoft 365 Commercial and Consumer products and cloud services, LinkedIn with its Talent, Marketing, Premium, and Sales Solutions, and Dynamics products and cloud services including Dynamics 365 and low code platforms like Power Apps and Power Automate. This segment focuses on AI-powered business productivity, professional networking, and intelligent business applications.",
       "key_products_services": [
         "Microsoft 365 Commercial",
         "Microsoft 365 Copilot",
@@ -56,7 +56,6 @@
         "Microsoft Teams",
         "Microsoft 365 Security and Compliance",
         "Microsoft 365 Consumer",
-        "Office licensed on-premises",
         "LinkedIn",
         "Talent Solutions",
         "Marketing Solutions",
@@ -65,10 +64,10 @@
         "Dynamics 365",
         "Power Apps",
         "Power Automate",
-        "Dynamics products and cloud services",
         "Microsoft 365 Commercial products and cloud services",
         "Microsoft 365 Consumer products and cloud services",
-        "LinkedIn"
+        "LinkedIn",
+        "Dynamics products and cloud services"
       ],
       "primary_source": "10-K text snippet"
     }

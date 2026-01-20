@@ -61,6 +61,54 @@ GOOGL_ADJUSTMENT_ITEMS: set = {
 # AAPL: Product categories are the line items, segment is effectively "Apple"
 # No mapping needed - items are already at the right granularity
 
+# AMZN: Segments are North America, International, AWS
+# "Consolidated" is a total row, not a segment
+AMZN_SUBTOTAL_ITEMS: set = {
+    "Consolidated",
+    "Total",
+}
+
+# META: Family of Apps is a subtotal (= Advertising + Other revenue)
+# Reality Labs is a standalone segment
+META_ITEM_TO_SEGMENT: Dict[str, str] = {
+    "Advertising": "Family of Apps",
+    "Other revenue": "Family of Apps",
+    "Reality Labs": "Reality Labs",
+}
+
+META_SUBTOTAL_ITEMS: set = {
+    "Family of Apps",  # Subtotal of Advertising + Other revenue
+    "Total revenue",
+    "Total",
+}
+
+# NVDA: The revenue table shows "Revenue by End Market"
+# Data Center (subtotal containing Compute + Networking)
+# Gaming, Professional Visualization, Automotive, OEM and Other are standalone items
+NVDA_ITEM_TO_SEGMENT: Dict[str, str] = {
+    # Data Center sub-items
+    "Compute": "Data Center",
+    "Networking": "Data Center",
+    # Standalone items (report as their own segment)
+    "Gaming": "Gaming",
+    "Professional Visualization": "Professional Visualization",
+    "Automotive": "Automotive",
+    "OEM and Other": "OEM and Other",
+}
+
+NVDA_SUBTOTAL_ITEMS: set = {
+    "Total",
+    "Total revenue",
+    "Data Center",  # Subtotal row (= Compute + Networking)
+    "Compute & Networking",  # If it appears
+    "Graphics",  # If it appears
+    "Revenue",  # Sometimes appears as a metric row
+    "Operating income",
+    "Operating income (loss)",
+    "Other segment items",
+    "Other segment items (1)",
+}
+
 
 def get_segment_for_item(ticker: str, item_label: str) -> Optional[str]:
     """
@@ -76,6 +124,10 @@ def get_segment_for_item(ticker: str, item_label: str) -> Optional[str]:
         mapping = MSFT_ITEM_TO_SEGMENT
     elif ticker_upper == "GOOGL":
         mapping = GOOGL_ITEM_TO_SEGMENT
+    elif ticker_upper == "META":
+        mapping = META_ITEM_TO_SEGMENT
+    elif ticker_upper == "NVDA":
+        mapping = NVDA_ITEM_TO_SEGMENT
     
     if mapping:
         # Try exact match first
@@ -147,19 +199,26 @@ def is_subtotal_row(label: str, ticker: str = "") -> bool:
     
     ticker_upper = ticker.upper()
     
-    # GOOGL-specific subtotals
+    # Get the appropriate subtotal set
+    subtotal_items: set = set()
     if ticker_upper == "GOOGL":
-        if label_clean in GOOGL_SUBTOTAL_ITEMS:
-            return True
-        # Case-insensitive check
-        for item in GOOGL_SUBTOTAL_ITEMS:
-            if item.lower() == label_lower:
-                return True
+        subtotal_items = GOOGL_SUBTOTAL_ITEMS
+    elif ticker_upper == "AMZN":
+        subtotal_items = AMZN_SUBTOTAL_ITEMS
+    elif ticker_upper == "META":
+        subtotal_items = META_SUBTOTAL_ITEMS
+    elif ticker_upper == "NVDA":
+        subtotal_items = NVDA_SUBTOTAL_ITEMS
+    elif ticker_upper == "MSFT":
+        # MSFT: segment names in the revenue table are NOT subtotals
         return False
     
-    # MSFT: segment names in the revenue table are NOT subtotals
-    # (the table is already at the product level)
-    if ticker_upper == "MSFT":
-        return False
+    if subtotal_items:
+        if label_clean in subtotal_items:
+            return True
+        # Case-insensitive check
+        for item in subtotal_items:
+            if item.lower() == label_lower:
+                return True
     
     return False

@@ -1,0 +1,50 @@
+{
+  "year": 2025,
+  "rows": [
+    {
+      "segment": "Data Center",
+      "item": "Compute",
+      "value": 102196000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "Data Center",
+      "item": "Networking",
+      "value": 12990000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "Gaming",
+      "item": "Gaming",
+      "value": 11350000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "Professional Visualization",
+      "item": "Professional Visualization",
+      "value": 1878000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "Automotive",
+      "item": "Automotive",
+      "value": 1694000000,
+      "row_type": "item"
+    },
+    {
+      "segment": "OEM and Other",
+      "item": "OEM and Other",
+      "value": 389000000,
+      "row_type": "item"
+    }
+  ],
+  "table_total": 130497000000,
+  "segment_revenues": {
+    "Data Center": 115186000000,
+    "Gaming": 11350000000,
+    "Professional Visualization": 1878000000,
+    "Automotive": 1694000000,
+    "OEM and Other": 389000000
+  },
+  "adjustment_revenues": {}
+}

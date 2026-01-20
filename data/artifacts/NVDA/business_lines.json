@@ -1,0 +1,12 @@
+{
+  "dimension": "reportable_segments",
+  "segments": [
+    "Gaming",
+    "Data Center",
+    "Professional Visualization",
+    "Automotive",
+    "OEM and Other"
+  ],
+  "include_segments_optional": [],
+  "notes": "NVIDIA reports revenue by these primary business segments in its filings."
+}

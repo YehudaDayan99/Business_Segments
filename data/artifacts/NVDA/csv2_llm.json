@@ -1,0 +1,49 @@
+{
+  "rows": [
+    {
+      "segment": "Automotive",
+      "segment_description": "The Automotive segment focuses on AI model training and inference, data analytics, scientific computing, and 3D graphics with vertical-specific optimizations tailored for industries including automotive. It leverages NVIDIA's GPU technology to enable advanced automotive applications and virtual simulations.",
+      "key_products_services": [
+        "Automotive"
+      ],
+      "primary_source": "Automotive text snippet and revenue items"
+    },
+    {
+      "segment": "Data Center",
+      "segment_description": "The Data Center segment accelerates compute-intensive workloads such as AI, data analytics, graphics, and scientific computing. It includes compute and networking solutions that scale to tens of thousands of GPU-accelerated servers, supporting modern AI applications. Key platforms include the Hopper computing platform for large language models and Spectrum-X ethernet platform for AI networking.",
+      "key_products_services": [
+        "Compute",
+        "Networking",
+        "Hopper computing platform",
+        "Spectrum-X ethernet platform"
+      ],
+      "primary_source": "Data Center text snippet and revenue items"
+    },
+    {
+      "segment": "Gaming",
+      "segment_description": "The Gaming segment is rooted in NVIDIA's invention of the GPU, which revolutionized PC gaming and computer graphics. It includes products and software stacks that support gaming and compute-intensive applications, highlighted by the GeForce RTX 40 Series GPUs and CUDA programming model enabling parallel processing.",
+      "key_products_services": [
+        "Gaming",
+        "GeForce RTX 40 Series GPUs",
+        "CUDA programming model"
+      ],
+      "primary_source": "Gaming text snippet and revenue items"
+    },
+    {
+      "segment": "Professional Visualization",
+      "segment_description": "The Professional Visualization segment delivers platforms combining processors, interconnects, software, algorithms, systems, and services to address markets requiring advanced visualization capabilities. It supports workloads in data center, gaming, professional visualization, and automotive markets.",
+      "key_products_services": [
+        "Professional Visualization"
+      ],
+      "primary_source": "Professional Visualization text snippet and revenue items"
+    },
+    {
+      "segment": "OEM and Other",
+      "segment_description": "The OEM and Other segment includes various products and services not specifically detailed in the provided text but is recognized as a distinct revenue category in NVIDIA's financial reporting.",
+      "key_products_services": [
+        "OEM and Other"
+      ],
+      "primary_source": "Revenue items from filing"
+    }
+  ]
+}

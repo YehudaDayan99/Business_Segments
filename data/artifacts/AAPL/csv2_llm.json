@@ -2,43 +2,43 @@
   "rows": [
     {
       "segment": "Mac",
-      "segment_description": "The Mac segment includes Apple's line of personal computers. The text snippet does not provide detailed product descriptions but references Mac as a revenue item. The segment is part of the Company's consolidated financials and is managed alongside other hardware products.",
+      "segment_description": "The Mac segment includes Apple's line of personal computers. The text snippet primarily contains financial and tax-related information without detailed product descriptions, but the segment is identified as a key revenue source. The Mac segment is part of Apple's hardware offerings and contributes to the company's overall net sales.",
       "key_products_services": [
         "Mac"
       ],
-      "primary_source": "segment text and revenue items from filing"
+      "primary_source": "Mac text snippet and revenue items"
     },
     {
       "segment": "Services",
-      "segment_description": "The Services segment encompasses Apple's supplier arrangements, licensed intellectual property and content, and distribution rights. It involves commitments such as unconditional purchase obligations and is influenced by supply chain factors including component sourcing and manufacturing partnerships primarily in Asia. The segment is managed geographically and includes net sales and operating income data by region.",
+      "segment_description": "The Services segment encompasses Apple's various service offerings, including licensed intellectual property, content, and distribution rights. The company manages supplier arrangements and supply chain commitments related to these services. The segment is also managed geographically to align with customer locations and market dynamics, contributing significantly to net sales and operating income.",
       "key_products_services": [
         "Services (1)"
       ],
-      "primary_source": "segment text and revenue items from filing"
+      "primary_source": "Services text snippet and revenue items"
     },
     {
-      "segment": "Wearables/Home/Accessories",
-      "segment_description": "The Wearables, Home and Accessories segment includes Apple's hardware products in these categories. Although the text snippet provided is empty, the segment is listed as a revenue item in the filing, indicating it represents a distinct product category within Apple's hardware offerings.",
+      "segment": "Wearables, Home and Accessories",
+      "segment_description": "This segment includes Apple's products related to wearables, home devices, and accessories. The text snippet provides net sales figures for this segment, indicating its contribution to Apple's total net sales. It is part of the hardware product categories alongside iPhone, Mac, and iPad.",
       "key_products_services": [
         "Wearables, Home and Accessories"
       ],
-      "primary_source": "revenue items from filing"
+      "primary_source": "Wearables, Home and Accessories text snippet and revenue items"
     },
     {
       "segment": "iPad",
-      "segment_description": "The iPad segment covers Apple's tablet products and related bundled software delivered at the time of sale. It also includes product-related bundled services such as iCloud, Siri, and Maps. Revenue allocation is based on performance obligations related to hardware and services.",
+      "segment_description": "The iPad segment covers Apple's tablet products and related bundled software and services such as iCloud, Siri, and Maps. The company recognizes revenue based on performance obligations including hardware delivery and product-related services, allocating revenue accordingly.",
       "key_products_services": [
         "iPad"
       ],
-      "primary_source": "segment text and revenue items from filing"
+      "primary_source": "iPad text snippet and revenue items"
     },
     {
       "segment": "iPhone",
-      "segment_description": "The iPhone segment includes Apple's smartphone products. The text notes that iPhone revenue represents a significant portion of net sales, especially in Greater China. Deferred revenue related to iPhone sales is also disclosed, with expected realization timelines.",
+      "segment_description": "The iPhone segment includes Apple's smartphone products. The text snippet references revenue recognition and deferred revenue related to iPhone sales, highlighting its significant contribution to net sales across geographic segments. The iPhone segment is a major component of Apple's hardware revenue.",
       "key_products_services": [
         "iPhone"
       ],
-      "primary_source": "segment text and revenue items from filing"
+      "primary_source": "iPhone text snippet and revenue items"
     }
   ]
 }

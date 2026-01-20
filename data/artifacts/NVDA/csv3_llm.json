@@ -1,0 +1,94 @@
+{
+  "rows": [
+    {
+      "segment": "Automotive",
+      "business_item": "AI model training and inference",
+      "business_item_short_description": "AI model training and inference tailored for automotive applications.",
+      "business_item_long_description": "The Automotive segment focuses on AI model training and inference to support advanced automotive applications. This includes leveraging NVIDIA's GPU technology for efficient processing and optimization.",
+      "evidence_span": "The Automotive segment focuses on AI model training and inference, data analytics, scientific computing, and 3D graphics with vertical-specific optimizations tailored for industries including automotive.",
+      "evidence_validated": true,
+      "item_in_source": false
+    },
+    {
+      "segment": "Automotive",
+      "business_item": "data analytics",
+      "business_item_short_description": "Data analytics services tailored for the automotive industry.",
+      "business_item_long_description": "The Automotive segment provides data analytics capabilities to support automotive industry needs. These analytics help in processing and interpreting large datasets for better decision-making and innovation.",
+      "evidence_span": "The Automotive segment focuses on AI model training and inference, data analytics, scientific computing, and 3D graphics with vertical-specific optimizations tailored for industries including automotive.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Automotive",
+      "business_item": "scientific computing",
+      "business_item_short_description": "Scientific computing solutions for automotive industry applications.",
+      "business_item_long_description": "The Automotive segment includes scientific computing to enable complex simulations and computations necessary for automotive research and development. This is supported by NVIDIA's GPU technology for enhanced performance.",
+      "evidence_span": "The Automotive segment focuses on AI model training and inference, data analytics, scientific computing, and 3D graphics with vertical-specific optimizations tailored for industries including automotive.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Automotive",
+      "business_item": "3D graphics",
+      "business_item_short_description": "3D graphics with vertical-specific optimizations for automotive use cases.",
+      "business_item_long_description": "The Automotive segment offers 3D graphics solutions optimized for automotive industry needs, enabling virtual simulations and advanced visualization. These graphics capabilities leverage NVIDIA's GPU technology.",
+      "evidence_span": "The Automotive segment focuses on AI model training and inference, data analytics, scientific computing, and 3D graphics with vertical-specific optimizations tailored for industries including automotive.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Automotive",
+      "business_item": "NVIDIA's GPU technology",
+      "business_item_short_description": "GPU technology enabling advanced automotive applications and simulations.",
+      "business_item_long_description": "NVIDIA's GPU technology is leveraged in the Automotive segment to enable advanced automotive applications and virtual simulations. This technology supports AI, analytics, scientific computing, and 3D graphics tailored for the automotive industry.",
+      "evidence_span": "It leverages NVIDIA's GPU technology to enable advanced automotive applications and virtual simulations.",
+      "evidence_validated": true,
+      "item_in_source": false
+    },
+    {
+      "segment": "Data Center",
+      "business_item": "Hopper computing platform",
+      "business_item_short_description": "A computing platform designed for large language models.",
+      "business_item_long_description": "The Hopper computing platform is a key platform within the Data Center segment, specifically designed to accelerate compute-intensive workloads such as AI and large language models. It supports modern AI applications by scaling to tens of thousands of GPU-accelerated servers.",
+      "evidence_span": "Key platforms include the Hopper computing platform for large language models and Spectrum-X ethernet platform for AI networking.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Data Center",
+      "business_item": "Spectrum-X ethernet platform",
+      "business_item_short_description": "An ethernet platform for AI networking.",
+      "business_item_long_description": "The Spectrum-X ethernet platform is a networking solution within the Data Center segment that supports AI networking. It is designed to scale to tens of thousands of GPU-accelerated servers, facilitating modern AI applications.",
+      "evidence_span": "Key platforms include the Hopper computing platform for large language models and Spectrum-X ethernet platform for AI networking.",
+      "evidence_validated": true,
+      "item_in_source": false
+    },
+    {
+      "segment": "Gaming",
+      "business_item": "GeForce RTX 40 Series GPUs",
+      "business_item_short_description": "A series of GPUs designed for gaming and compute-intensive applications.",
+      "business_item_long_description": "The GeForce RTX 40 Series GPUs are part of NVIDIA's Gaming segment, providing advanced graphics processing capabilities that revolutionize PC gaming and computer graphics. These GPUs support high-performance gaming and complex compute tasks.",
+      "evidence_span": "highlighted by the GeForce RTX 40 Series GPUs and CUDA programming model enabling parallel processing.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Gaming",
+      "business_item": "CUDA programming model",
+      "business_item_short_description": "A programming model enabling parallel processing for gaming and compute applications.",
+      "business_item_long_description": "The CUDA programming model is a software stack included in NVIDIA's Gaming segment that enables parallel processing. It supports gaming and compute-intensive applications by allowing developers to leverage GPU capabilities effectively.",
+      "evidence_span": "highlighted by the GeForce RTX 40 Series GPUs and CUDA programming model enabling parallel processing.",
+      "evidence_validated": true,
+      "item_in_source": true
+    },
+    {
+      "segment": "Professional Visualization",
+      "business_item": "platforms",
+      "business_item_short_description": "Platforms combining processors, interconnects, software, algorithms, systems, and services.",
+      "business_item_long_description": "The Professional Visualization segment delivers platforms that integrate various components such as processors, interconnects, software, algorithms, systems, and services. These platforms are designed to address markets requiring advanced visualization capabilities.",
+      "evidence_span": "The Professional Visualization segment delivers platforms combining processors, interconnects, software, algorithms, systems, and services to address markets requiring advanced visualization capabilities.",
+      "evidence_validated": true,
+      "item_in_source": true
+    }
+  ]
+}

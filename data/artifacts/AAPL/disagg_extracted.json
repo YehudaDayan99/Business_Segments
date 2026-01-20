@@ -20,7 +20,7 @@
       "row_type": "item"
     },
     {
-      "segment": "Wearables/Home/Accessories",
+      "segment": "Wearables, Home and Accessories",
       "item": "Wearables, Home and Accessories",
       "value": 35686000000,
       "row_type": "item"
@@ -37,7 +37,7 @@
     "iPhone": 209586000000,
     "Mac": 33708000000,
     "iPad": 28023000000,
-    "Wearables/Home/Accessories": 35686000000,
+    "Wearables, Home and Accessories": 35686000000,
     "Services": 109158000000
   },
   "adjustment_revenues": {}
