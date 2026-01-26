@@ -2,5 +2,5 @@
   "table_id": "t0055",
   "confidence": 0.8,
   "selected_dimension": "segment",
-  "rationale": "The table t0055 presents details of reportable segments and includes a Total Revenue row for recent fiscal years (2023, 2024, 2025). Although the inferred dimension is unknown, the nearby text context indicates it is a segment breakdown. No product/service disaggregation table was found in the snippets. This table is from Item 8 / Notes and is the most granular revenue breakdown available in the data."
+  "rationale": "This table presents details of reportable segments and includes revenue and total revenue rows for recent fiscal years (2023, 2024, 2025). Although the inferred dimension is unknown, it is the best candidate disaggregating revenue by business lines with total revenue, from the available tables. No product/service disaggregation table was found in the snippets."
 }

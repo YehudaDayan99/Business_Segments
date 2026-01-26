@@ -13,7 +13,7 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 1. **Evidence-based**: All extracted items must be traceable to the filing text
 2. **Products/Services only**: Adjustments (hedging, corporate) are excluded from primary output
 3. **Reconciliation**: Internal validation ensures extracted items sum to total revenue
-4. **No hallucination**: CSV3 items require evidence spans validated against source text
+4. **Company language**: Descriptions use direct quotes from 10-K footnotes and text
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -30,7 +30,7 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 │   │  snippets)  │     │              │     │                 │              │
 │   └─────────────┘     └──────────────┘     └────────┬────────┘              │
 │                                                      │                       │
-│                                                      ▼                       │
+│         [LLM: gpt-4.1-mini - fast model]            ▼                       │
 │                              ┌─────────────────────────────────────┐        │
 │                              │         Layout Inference            │        │
 │                              │   (identify columns, rows, units)   │        │
@@ -39,18 +39,27 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 │                                               ▼                              │
 │   ┌─────────────────────────────────────────────────────────────────┐       │
 │   │                  Deterministic Extraction                        │       │
-│   │   • Parse table grid                                             │       │
+│   │   • Parse table grid (no LLM)                                    │       │
 │   │   • Map items to segments (using mappings.py)                    │       │
-│   │   • Extract revenue values                                       │       │
-│   │   • Validate against table total                                 │       │
+│   │   • Extract revenue values for target fiscal year                │       │
+│   │   • Validate against table total or SEC API                      │       │
 │   └─────────────────────────────────────────────────────────────────┘       │
 │                                               │                              │
 │                                               ▼                              │
+│   ┌─────────────────────────────────────────────────────────────────┐       │
+│   │              Description Extraction (Footnotes)                  │       │
+│   │   • Extract table footnote definitions (1), (2), etc.            │       │
+│   │   • Search 400k chars for "_____" separator + footnotes          │       │
+│   │   • Fallback: LLM section search (Item 1, MD&A, Notes)           │       │
+│   └─────────────────────────────────────────────────────────────────┘       │
+│                                               │                              │
+│         [LLM: gpt-4.1 - quality model]       ▼                              │
 │   ┌─────────────┐     ┌──────────────┐     ┌─────────────────┐              │
 │   │    CSV1     │     │    CSV2      │     │     CSV3        │              │
 │   │  (revenue   │     │  (segment    │     │  (detailed      │              │
-│   │   by item)  │     │  descrip.)   │     │   items)        │              │
+│   │  + descrip) │     │  descrip.)   │     │   items)        │              │
 │   └─────────────┘     └──────────────┘     └─────────────────┘              │
+│                        [optional]            [optional]                      │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -64,6 +73,7 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 - Different structures (AAPL uses product categories, MSFT uses reportable segments)
 - Different locations (Item 1, Item 7, Item 8 / Notes)
 - Different formats (iXBRL with split cells, nested tables)
+- **Footnotes** contain the descriptions but appear after tables with `___` separators
 
 ### The Solution: Agent-Based Approach
 
@@ -92,14 +102,15 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 - Uses `mappings.py` to assign items to segments (e.g., "LinkedIn" → "Productivity and Business Processes")
 - Extracts values, handles accounting negatives `(500)`, validates totals
 
-**6. Description Agents** — Enrich with context (evidence-based):
-- CSV2: Summarizes each segment from bounded 10-K text (segment note section)
-  - Uses revenue_items from CSV1 as grounding keywords
-  - Excludes "Other" residual segments
-- CSV3: **Extracts** (not expands) items with evidence validation:
-  - Each item requires an `evidence_span` verbatim quote
-  - Post-validation rejects items not found in source text
-  - De-duplication prevents cross-segment duplicates
+**6. Footnote Extraction** — Company-language descriptions:
+- Detects footnote markers in labels: "Online stores (1)", "AWS (2)"
+- Searches for `_____` separator followed by `(N) Includes...` pattern
+- Extracts verbatim footnote text as description
+- Fallback: LLM searches Item 1, MD&A, Notes sections
+
+**7. Description Agents (Optional)** — Enrich with context:
+- CSV2: Summarizes each segment from bounded 10-K text
+- CSV3: Extracts detailed items with evidence validation
 
 ---
 
@@ -109,8 +120,8 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 
 | File | Purpose |
 |------|---------|
-| `pipeline.py` | Main orchestration, loops over tickers |
-| `react_agents.py` | All LLM agent functions |
+| `pipeline.py` | Main orchestration, loops over tickers, CSV1 output |
+| `react_agents.py` | All LLM agent functions + footnote extraction |
 | `extraction/core.py` | Deterministic extraction logic |
 | `extraction/matching.py` | Fuzzy segment name matching |
 | `extraction/validation.py` | Revenue sum validation |
@@ -118,11 +129,24 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 | `table_candidates.py` | HTML parsing, table extraction |
 | `table_kind.py` | Deterministic gates (reject unearned revenue, etc.) |
 
-### LLM Configuration
+### LLM Configuration (Tiered Approach)
 
-- **Model**: `gpt-4.1-mini` (all agents)
-- **Output format**: Strict JSON with defined schemas
-- **Token limits**: 700-2000 depending on task
+| Task | Model | Purpose |
+|------|-------|---------|
+| Scout, Discover, Table Select, Layout | `gpt-4.1-mini` | High volume, speed |
+| Line descriptions (CSV1) | `gpt-4.1` | Quality descriptions |
+| Segment descriptions (CSV2) | `gpt-4.1` | Quality summaries |
+| Item expansion (CSV3) | `gpt-4.1` | Evidence-based extraction |
+
+### Footnote Extraction Logic
+
+```
+1. Check if revenue line has footnote marker: "Online stores (1)"
+2. Find label in 10-K text, look for "_____" separator within 3000 chars
+3. Extract "(1) Includes..." pattern after separator (up to 600 chars)
+4. If not found, search Item 8 section for separator + footnotes
+5. Fallback: LLM searches Item 1 → MD&A → Notes → Full text
+```
 
 ### Table Selection Logic
 
@@ -150,24 +174,27 @@ This pipeline extracts revenue segmentation data from SEC 10-K filings using a c
 
 ### Output Schema
 
-**CSV1** (primary output — products/services only):
+**CSV1** (primary output — revenue lines with descriptions):
 ```
-Year, Company, Ticker, Segment, Item, Income $, Income %, Row type, Primary source, Link
+Company Name, Ticker, Fiscal Year, Revenue Group (Reportable Segment), 
+Revenue Line, Line Item description (company language), Revenue ($m)
 ```
-- **Excludes**: Adjustments (hedging), "Other" residual segments
-- **Includes**: Only explicitly quantified product/service revenue lines
 
-**CSV2** (segment descriptions):
+Example row:
+```csv
+AMAZON COM INC,AMZN,2024,Product/Service disclosure,Online stores,
+"Includes product sales and digital media content where we record revenue gross...",247029.0
+```
+
+**CSV2** (segment descriptions, optional):
 ```
 Company, Ticker, Segment, Segment description, Key products/services, Primary source, Link
 ```
 
-**CSV3** (detailed items — evidence-based):
+**CSV3** (detailed items, optional):
 ```
 Company, Ticker, Segment, Business item, Short description, Long description, Evidence span, Link
 ```
-- Items must be found in source text (not LLM-invented)
-- Excludes "Other" and "Corporate" segments
 
 ### Adding New Companies
 
@@ -190,15 +217,26 @@ For most companies, the LLM agents handle mapping automatically.
 ## Running the Pipeline
 
 ```bash
-# Single ticker
-python -m revseg.pipeline --tickers MSFT --out-dir data/outputs
+# Single ticker (CSV1 only - fast mode)
+python -m revseg.pipeline --tickers MSFT --out-dir data/outputs --csv1-only
 
-# Multiple tickers
+# Multiple tickers with all outputs
 python -m revseg.pipeline --tickers AAPL,MSFT,GOOGL --out-dir data/outputs
 
-# Generate Excel
-python -m revseg.export_xlsx --csv-dir data/outputs --out data/outputs/results.xlsx
+# Custom models
+python -m revseg.pipeline --tickers AMZN --model-fast gpt-4.1-mini --model-quality gpt-4.1
 ```
+
+### Command Line Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tickers` | (required) | Comma-separated ticker symbols |
+| `--out-dir` | `data/outputs` | Output directory |
+| `--csv1-only` | `false` | Skip CSV2/CSV3 to save tokens |
+| `--model-fast` | `gpt-4.1-mini` | Model for high-volume tasks |
+| `--model-quality` | `gpt-4.1` | Model for quality-critical tasks |
+| `--max-react-iters` | `3` | Max retries for table selection |
 
 ### Artifacts
 
@@ -206,5 +244,19 @@ Each run produces artifacts in `data/artifacts/{TICKER}/`:
 - `scout.json` — Document structure analysis
 - `disagg_layout.json` — Inferred table layout
 - `disagg_extracted.json` — Raw extraction results
-- `csv2_llm.json`, `csv3_llm.json` — LLM responses for descriptions
+- `csv1_line_descriptions.json` — Footnote/LLM descriptions
+- `csv2_llm.json`, `csv3_llm.json` — LLM responses (if not --csv1-only)
 - `trace.jsonl` — Full execution trace for debugging
+
+---
+
+## Performance Characteristics
+
+| Ticker Count | Mode | Approx. Time | LLM Calls |
+|--------------|------|--------------|-----------|
+| 1 | csv1-only | ~20 sec | ~5 |
+| 1 | full | ~45 sec | ~8 |
+| 6 | csv1-only | ~2 min | ~30 |
+| 6 | full | ~4 min | ~48 |
+
+*Times vary based on LLM response latency and 10-K document size.*

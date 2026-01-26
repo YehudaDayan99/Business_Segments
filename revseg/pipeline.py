@@ -152,8 +152,12 @@ def _to_millions(value_usd: int) -> float:
     return round(value_usd / 1_000_000, 2)
 
 
-def _html_text_for_llm(html_path: Path, *, max_chars: int = 250_000) -> str:
-    """Extract text from HTML for LLM consumption (cached)."""
+def _html_text_for_llm(html_path: Path, *, max_chars: int = 400_000) -> str:
+    """Extract text from HTML for LLM consumption (cached).
+    
+    Note: Increased limit to 400k to ensure footnotes (which appear after tables)
+    are captured for description extraction.
+    """
     cache_key = str(html_path)
     if cache_key in _CACHE_HTML_TEXT:
         return _CACHE_HTML_TEXT[cache_key]
@@ -412,12 +416,16 @@ def run_pipeline(
     model_quality: str = "gpt-4.1",
     max_react_iters: int = 3,
     validation_tolerance_pct: float = 0.02,
+    csv1_only: bool = False,
 ) -> Dict[str, Any]:
     """End-to-end run for multiple tickers (latest 10-K per ticker).
     
     Uses tiered model approach:
     - model_fast (gpt-4.1-mini): high-volume tasks (table selection, layout inference)
     - model_quality (gpt-4.1): quality-critical tasks (descriptions, segment discovery)
+    
+    Args:
+        csv1_only: If True, skip CSV2/CSV3 generation to save tokens.
     """
     # Clear caches at start of run to ensure fresh state
     _clear_caches()
@@ -879,63 +887,65 @@ def run_pipeline(
             # Get the detected dimension for this extraction
             detected_dimension = extraction_result.dimension if extraction_result else "segment"
             
-            # Use quality model for segment descriptions
-            print(f"[{ticker}] summarizing segment descriptions (LLM quality)...", flush=True)
-            seg_desc = summarize_segment_descriptions(
-                llm_quality,
-                ticker=ticker,
-                company_name=company_name,
-                sec_doc_url=sec_doc_url,
-                html_text=html_text,
-                segment_names=seg_names,
-                revenue_items=revenue_item_names,
-                dimension=detected_dimension,
-                table_context=accepted_table_context,
-            )
-            (t_art / "csv2_llm.json").write_text(json.dumps(seg_desc, indent=2, ensure_ascii=False), encoding="utf-8")
+            # CSV2/CSV3 generation (skip if csv1_only mode)
+            if not csv1_only:
+                # Use quality model for segment descriptions
+                print(f"[{ticker}] summarizing segment descriptions (LLM quality)...", flush=True)
+                seg_desc = summarize_segment_descriptions(
+                    llm_quality,
+                    ticker=ticker,
+                    company_name=company_name,
+                    sec_doc_url=sec_doc_url,
+                    html_text=html_text,
+                    segment_names=seg_names,
+                    revenue_items=revenue_item_names,
+                    dimension=detected_dimension,
+                    table_context=accepted_table_context,
+                )
+                (t_art / "csv2_llm.json").write_text(json.dumps(seg_desc, indent=2, ensure_ascii=False), encoding="utf-8")
 
-            for r in (seg_desc.get("rows") or []):
-                csv2_rows.append(
-                    {
-                        "Company": company_name,
-                        "Ticker": ticker,
-                        "Segment": r.get("segment", ""),
-                        "Segment description": r.get("segment_description", ""),
-                        "Key products / services (keywords)": "; ".join(r.get("key_products_services", []) or []),
-                        "Primary source": r.get("primary_source", "10-K segment/business description"),
-                        "Link": sec_doc_url,
-                    }
+                for r in (seg_desc.get("rows") or []):
+                    csv2_rows.append(
+                        {
+                            "Company": company_name,
+                            "Ticker": ticker,
+                            "Segment": r.get("segment", ""),
+                            "Segment description": r.get("segment_description", ""),
+                            "Key products / services (keywords)": "; ".join(r.get("key_products_services", []) or []),
+                            "Primary source": r.get("primary_source", "10-K segment/business description"),
+                            "Link": sec_doc_url,
+                        }
+                    )
+
+                # Use quality model for item extraction
+                print(f"[{ticker}] expanding key items per segment (LLM quality)...", flush=True)
+                csv3_payload = expand_key_items_per_segment(
+                    llm_quality,
+                    ticker=ticker,
+                    company_name=company_name,
+                    sec_doc_url=sec_doc_url,
+                    segment_rows=(seg_desc.get("rows") or []),
+                    html_text=html_text,
+                    dimension=detected_dimension,
+                )
+                (t_art / "csv3_llm.json").write_text(
+                    json.dumps(csv3_payload, indent=2, ensure_ascii=False), encoding="utf-8"
                 )
 
-            # Use quality model for item extraction
-            print(f"[{ticker}] expanding key items per segment (LLM quality)...", flush=True)
-            csv3_payload = expand_key_items_per_segment(
-                llm_quality,
-                ticker=ticker,
-                company_name=company_name,
-                sec_doc_url=sec_doc_url,
-                segment_rows=(seg_desc.get("rows") or []),
-                html_text=html_text,
-                dimension=detected_dimension,
-            )
-            (t_art / "csv3_llm.json").write_text(
-                json.dumps(csv3_payload, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
-
-            for r in (csv3_payload.get("rows") or []):
-                csv3_rows.append(
-                    {
-                        "Company Name": company_name,
-                        "Business segment": r.get("segment", ""),
-                        "Business item": r.get("business_item", ""),
-                        "Description of Business item": r.get("business_item_short_description", ""),
-                        "Textual description of the business item- Long form description": r.get(
-                            "business_item_long_description", ""
-                        ),
-                        "Primary source": r.get("primary_source", "10-K segment/business description"),
-                        "Link": sec_doc_url,
-                    }
-                )
+                for r in (csv3_payload.get("rows") or []):
+                    csv3_rows.append(
+                        {
+                            "Company Name": company_name,
+                            "Business segment": r.get("segment", ""),
+                            "Business item": r.get("business_item", ""),
+                            "Description of Business item": r.get("business_item_short_description", ""),
+                            "Textual description of the business item- Long form description": r.get(
+                                "business_item_long_description", ""
+                            ),
+                            "Primary source": r.get("primary_source", "10-K segment/business description"),
+                            "Link": sec_doc_url,
+                        }
+                    )
 
             per["ok"] = True
             per["segment_year"] = year
@@ -960,32 +970,33 @@ def run_pipeline(
         ],
         csv1_rows,
     )
-    _write_csv(
-        out_dir / "csv2_segment_descriptions.csv",
-        [
-            "Company",
-            "Ticker",
-            "Segment",
-            "Segment description",
-            "Key products / services (keywords)",
-            "Primary source",
-            "Link",
-        ],
-        csv2_rows,
-    )
-    _write_csv(
-        out_dir / "csv3_segment_items.csv",
-        [
-            "Company Name",
-            "Business segment",
-            "Business item",
-            "Description of Business item",
-            "Textual description of the business item- Long form description",
-            "Primary source",
-            "Link",
-        ],
-        csv3_rows,
-    )
+    if not csv1_only:
+        _write_csv(
+            out_dir / "csv2_segment_descriptions.csv",
+            [
+                "Company",
+                "Ticker",
+                "Segment",
+                "Segment description",
+                "Key products / services (keywords)",
+                "Primary source",
+                "Link",
+            ],
+            csv2_rows,
+        )
+        _write_csv(
+            out_dir / "csv3_segment_items.csv",
+            [
+                "Company Name",
+                "Business segment",
+                "Business item",
+                "Description of Business item",
+                "Textual description of the business item- Long form description",
+                "Primary source",
+                "Link",
+            ],
+            csv3_rows,
+        )
 
     (out_dir / "run_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
@@ -1000,6 +1011,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
     p.add_argument("--model-quality", default="gpt-4.1", help="Quality model for descriptions/discovery")
     p.add_argument("--max-react-iters", type=int, default=3)
     p.add_argument("--out-dir", default="data/outputs")
+    p.add_argument("--csv1-only", action="store_true", help="Generate only CSV1 (skip CSV2/CSV3)")
     args = p.parse_args(argv)
     return {
         "tickers": [t.strip().upper() for t in args.tickers.split(",") if t.strip()],
@@ -1007,6 +1019,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
         "model_quality": args.model_quality,
         "max_react_iters": int(args.max_react_iters),
         "out_dir": Path(args.out_dir),
+        "csv1_only": args.csv1_only,
     }
 
 

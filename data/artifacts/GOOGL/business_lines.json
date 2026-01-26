@@ -5,8 +5,6 @@
     "Google Cloud",
     "Other Bets"
   ],
-  "include_segments_optional": [
-    "Corporate"
-  ],
-  "notes": "Alphabet reports its primary business lines as reportable segments: Google Services, Google Cloud, and Other Bets. Corporate-level adjustments (e.g., hedging) are included in total revenues."
+  "include_segments_optional": [],
+  "notes": "Alphabet reports its primary business lines as reportable segments: Google Services, Google Cloud, and Other Bets."
 }

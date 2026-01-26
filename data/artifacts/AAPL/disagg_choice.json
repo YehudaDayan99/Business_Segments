@@ -2,5 +2,5 @@
   "table_id": "t0015",
   "confidence": 0.95,
   "selected_dimension": "product_service",
-  "rationale": "This table disaggregates revenue by product/service lines including iPhone, Mac, iPad, Wearables, Home and Accessories, Services, and includes a Total net sales row. It matches the requested business lines and provides recent fiscal years (2023-2025). It is more granular and product/service oriented compared to segment or geography tables, fulfilling the critical preference for product/service dimension."
+  "rationale": "This table disaggregates net sales by product/service categories matching the business lines: iPhone, Mac, iPad, Wearables, Home and Accessories, Services, and includes a Total net sales row. It covers recent fiscal years (2023-2025) and aligns with the preferred product/service dimension for granular revenue breakdown."
 }

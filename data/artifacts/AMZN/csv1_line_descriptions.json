@@ -2,15 +2,15 @@
   "rows": [
     {
       "revenue_line": "Online stores (1)",
-      "description": ""
+      "description": "Includes product sales and digital media content where we record revenue gross. We leverage our retail infrastructure to offer a wide selection of consumable and durable goods that includes media products available in both a physical and digital format, such as books, videos, games, music, and software. These product sales include digital products sold on a transactional basis. Digital media content subscriptions that provide unlimited viewing or usage rights are included in “Subscription services.”"
     },
     {
       "revenue_line": "Physical stores (2)",
-      "description": ""
+      "description": "Includes product sales where our customers physically select items in a store. Sales to customers who order goods online for delivery or pickup at our physical stores are included in 'Online stores.'"
     },
     {
       "revenue_line": "Third-party seller services (3)",
-      "description": ""
+      "description": "Includes commissions and any related fulfillment and shipping fees, and other third-party seller services."
     },
     {
       "revenue_line": "Advertising services (4)",
@@ -22,11 +22,11 @@
     },
     {
       "revenue_line": "AWS",
-      "description": "AWS offers a broad set of on-demand technology services, including compute, storage, database, analytics, and machine learning, and other services."
+      "description": "We serve developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, through AWS, which offers a broad set of on-demand technology services, including compute, storage, database, analytics, and machine learning, and other services."
     },
     {
       "revenue_line": "Other (6)",
-      "description": ""
+      "description": "Includes sales related to various other offerings, such as healthcare services, certain licensing and distribution of video content, and shipping services, and our co-branded credit card agreements."
     }
   ]
 }

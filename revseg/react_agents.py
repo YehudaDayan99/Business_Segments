@@ -98,6 +98,161 @@ def _expand_search_terms(label: str) -> List[str]:
     return terms
 
 
+# Pattern to extract footnote markers from labels like "Online stores (1)"
+_FOOTNOTE_MARKER_RE = re.compile(r'\((\d+)\)\s*$')
+
+
+def _extract_footnotes_from_text(text: str, prioritize_includes: bool = True) -> Dict[str, str]:
+    """
+    Extract footnote definitions from text.
+    
+    Looks for patterns like:
+    - "(1) Includes product sales..."
+    - "(2) Includes product sales where..."
+    
+    Args:
+        text: Text to search for footnotes
+        prioritize_includes: If True, strongly prefer footnotes starting with "Includes"
+        
+    Returns dict mapping footnote number to definition text.
+    """
+    if not text:
+        return {}
+    
+    footnotes: Dict[str, str] = {}
+    
+    # Pattern: (N) followed by "Includes" - this is the most reliable pattern for revenue footnotes
+    for i in range(1, 10):
+        # First priority: (N) Includes... (standard revenue footnote format)
+        pattern_includes = rf'\({i}\)\s*(Includes\s+[^(]*?)(?=\(\d+\)|_____|$)'
+        matches = re.findall(pattern_includes, text, re.IGNORECASE | re.DOTALL)
+        if matches:
+            for match in matches:
+                cleaned = _clean(match)
+                if len(cleaned) >= 20:
+                    footnotes[str(i)] = cleaned[:600]
+                    break
+        
+        # Second priority: Other substantive verbs
+        if str(i) not in footnotes:
+            pattern_verbs = rf'\({i}\)\s*((?:Represents|Consists|Comprises|Contains)\s+[^(]*?)(?=\(\d+\)|_____|$)'
+            matches2 = re.findall(pattern_verbs, text, re.IGNORECASE | re.DOTALL)
+            if matches2:
+                for match in matches2:
+                    cleaned = _clean(match)
+                    if len(cleaned) >= 20:
+                        footnotes[str(i)] = cleaned[:600]
+                        break
+        
+        # Third priority (only if not prioritizing includes): Capital letter start
+        if str(i) not in footnotes and not prioritize_includes:
+            pattern_capital = rf'\({i}\)\s*([A-Z][^(]*?)(?=\(\d+\)|_____|$)'
+            matches3 = re.findall(pattern_capital, text, re.DOTALL)
+            if matches3:
+                for match in matches3:
+                    cleaned = _clean(match)
+                    # Filter out non-definition matches
+                    if len(cleaned) >= 30 and not cleaned[0].isdigit():
+                        if cleaned.count('$') <= 1:
+                            footnotes[str(i)] = cleaned[:600]
+                            break
+    
+    return footnotes
+
+
+def _extract_footnote_for_label(label: str, html_text: str, table_context_text: str) -> Optional[str]:
+    """
+    Extract footnote definition for a revenue line label that contains a footnote marker.
+    
+    Args:
+        label: Revenue line label like "Online stores (1)"
+        html_text: Full HTML text to search
+        table_context_text: Table's nearby text context
+        
+    Returns:
+        Footnote definition text if found, None otherwise.
+    """
+    # Check if label has a footnote marker
+    match = _FOOTNOTE_MARKER_RE.search(label)
+    if not match:
+        return None
+    
+    footnote_num = match.group(1)
+    label_clean = _FOOTNOTE_MARKER_RE.sub('', label).strip().lower()
+    
+    # Strategy: Look for table separator (___) followed by footnotes
+    # This is the most reliable way to find footnotes for a specific table
+    
+    # Step 1: Find the label in context of revenue table, then look for separator + footnotes
+    low = html_text.lower() if html_text else ""
+    
+    # Find occurrences of the label
+    label_positions = []
+    search_pos = 0
+    while True:
+        idx = low.find(label_clean, search_pos)
+        if idx == -1:
+            break
+        label_positions.append(idx)
+        search_pos = idx + len(label_clean)
+        if len(label_positions) >= 10:  # Limit search
+            break
+    
+    # For each label position, look for "_____" separator followed by footnotes
+    for label_idx in label_positions:
+        # Look for separator after the label (within 3000 chars)
+        separator_idx = html_text.find("_____", label_idx, label_idx + 3000)
+        if separator_idx != -1:
+            # Found separator - extract footnotes from right after it
+            footnote_window = html_text[separator_idx:separator_idx + 10000]
+            
+            # Look specifically for (N) Includes pattern in this window
+            pattern = rf'\({footnote_num}\)\s*(Includes\s+[^(]+?)(?=\(\d+\)|_____|$)'
+            matches = re.findall(pattern, footnote_window, re.IGNORECASE | re.DOTALL)
+            if matches:
+                cleaned = _clean(matches[0])
+                if len(cleaned) >= 20:
+                    return cleaned[:600]
+    
+    # Step 2: Fallback - search for all (N) Includes patterns near the label
+    for label_idx in label_positions:
+        window = html_text[label_idx:label_idx + 15000]
+        
+        # Look for (N) Includes pattern
+        pattern = rf'\({footnote_num}\)\s*(Includes\s+[^(]+?)(?=\(\d+\)|_____|$)'
+        matches = re.findall(pattern, window, re.IGNORECASE | re.DOTALL)
+        if matches:
+            cleaned = _clean(matches[0])
+            if len(cleaned) >= 20:
+                return cleaned[:600]
+    
+    # Step 3: Try table context
+    if table_context_text:
+        footnotes = _extract_footnotes_from_text(table_context_text)
+        if footnote_num in footnotes:
+            return footnotes[footnote_num]
+    
+    # Step 4: Fallback - search Item 8 section
+    item8_match = _ITEM8_RE.search(html_text)
+    if item8_match:
+        item8_start = item8_match.start()
+        item8_section = html_text[item8_start:item8_start + 200000]
+        
+        # Look for separator + footnotes pattern
+        separator_pattern = r'_____+\s*\(\d+\)'
+        sep_matches = list(re.finditer(separator_pattern, item8_section))
+        for sep_match in sep_matches:
+            footnote_window = item8_section[sep_match.start():sep_match.start() + 10000]
+            pattern = rf'\({footnote_num}\)\s*(Includes\s+[^(]+?)(?=\(\d+\)|_____|$)'
+            matches = re.findall(pattern, footnote_window, re.IGNORECASE | re.DOTALL)
+            if matches:
+                cleaned = _clean(matches[0])
+                if len(cleaned) >= 20:
+                    return cleaned[:600]
+    
+    return None
+
+
 def _parse_number(s: str) -> Optional[float]:
     if s is None:
         return None
@@ -1254,6 +1409,34 @@ def describe_revenue_lines(
         table_context.get("nearby_text", ""),
     ])
     
+    # STEP 1: Try to extract footnote definitions for lines with footnote markers
+    # This is the most reliable source for AMZN-style disclosures
+    footnote_descriptions: Dict[str, str] = {}
+    for line_info in revenue_lines:
+        item_label = line_info.get("item", "")
+        if not item_label:
+            continue
+        
+        footnote_desc = _extract_footnote_for_label(item_label, html_text, table_context_text)
+        if footnote_desc:
+            footnote_descriptions[item_label] = footnote_desc
+    
+    # Lines that still need LLM-based description extraction
+    lines_needing_llm = [
+        line_info for line_info in revenue_lines
+        if line_info.get("item", "") not in footnote_descriptions
+    ]
+    
+    # If we got footnotes for all lines, skip LLM entirely
+    if not lines_needing_llm:
+        return {
+            "rows": [
+                {"revenue_line": line_info.get("item", ""), "description": footnote_descriptions.get(line_info.get("item", ""), "")}
+                for line_info in revenue_lines
+            ]
+        }
+    
+    # STEP 2: Section-aware search for remaining lines
     # Pre-extract major sections for priority search
     item1_section = _extract_section(html_text, _ITEM1_RE, max_chars=80000)
     item7_section = _extract_section(html_text, _ITEM7_RE, max_chars=80000)
@@ -1269,7 +1452,7 @@ def describe_revenue_lines(
     
     evidence_by_line: Dict[str, str] = {}
     
-    for line_info in revenue_lines:
+    for line_info in lines_needing_llm:
         item_label = line_info.get("item", "")
         if not item_label:
             continue
@@ -1325,76 +1508,78 @@ def describe_revenue_lines(
         combined = " [...] ".join(snippets)[:max_chars_per_line]
         evidence_by_line[item_label] = combined
     
-    # Build LLM prompt
-    system = (
-        "You are extracting product/service descriptions from SEC 10-K filings.\n\n"
-        "CRITICAL RULES:\n"
-        "1. Use ONLY company language from the provided evidence text.\n"
-        "2. Each description should be 1-2 sentences explaining what the revenue line includes.\n"
-        "3. Quote or closely paraphrase the company's own words.\n"
-        "4. Focus on the [ITEM1] and [ITEM7] sections which contain business descriptions.\n"
-        "5. If no description is found in the evidence, return an empty string.\n"
-        "6. Do NOT invent or infer descriptions not present in the text.\n\n"
-        "Output STRICT JSON ONLY."
-    )
+    # Build LLM prompt for lines that need LLM extraction
+    llm_descriptions: Dict[str, str] = {}
     
-    lines_data = []
-    for line_info in revenue_lines:
-        item = line_info.get("item", "")
-        lines_data.append({
-            "revenue_line": item,
-            "evidence_text": evidence_by_line.get(item, "")[:4000],
-        })
-    
-    user = json.dumps(
-        {
-            "ticker": ticker,
-            "company_name": company_name,
-            "fiscal_year": fiscal_year,
-            "revenue_lines": lines_data,
-            "instructions": (
-                "For each revenue_line, extract a description from evidence_text using company language. "
-                "Priority sources: [ITEM1] for business descriptions, [ITEM7] for MD&A context, [TABLE CONTEXT] for footnotes. "
-                "Focus on what products/services are included in this revenue category. "
-                "If the evidence doesn't describe this line, return empty string."
-            ),
-            "output_schema": {
-                "rows": [
-                    {
-                        "revenue_line": "string (exact match from input)",
-                        "description": "string (1-2 sentences in company language, or empty)",
-                    }
-                ]
-            },
-        },
-        ensure_ascii=False,
-    )
-    
-    try:
-        result = llm.json_call(system=system, user=user, max_output_tokens=2500)
-        rows = result.get("rows", [])
+    if lines_needing_llm and evidence_by_line:
+        system = (
+            "You are extracting product/service descriptions from SEC 10-K filings.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Use ONLY company language from the provided evidence text.\n"
+            "2. Each description should be 1-2 sentences explaining what the revenue line includes.\n"
+            "3. Quote or closely paraphrase the company's own words.\n"
+            "4. Focus on the [ITEM1] and [ITEM7] sections which contain business descriptions.\n"
+            "5. If no description is found in the evidence, return an empty string.\n"
+            "6. Do NOT invent or infer descriptions not present in the text.\n\n"
+            "Output STRICT JSON ONLY."
+        )
         
-        # Create lookup dict for descriptions
-        descriptions = {}
-        for row in rows:
-            line = row.get("revenue_line", "")
-            desc = row.get("description", "")
-            if line:
-                descriptions[line] = desc
-        
-        # Match back to input lines
-        output_rows = []
-        for line_info in revenue_lines:
+        lines_data = []
+        for line_info in lines_needing_llm:
             item = line_info.get("item", "")
-            output_rows.append({
+            lines_data.append({
                 "revenue_line": item,
-                "description": descriptions.get(item, ""),
+                "evidence_text": evidence_by_line.get(item, "")[:4000],
             })
         
-        return {"rows": output_rows}
+        user = json.dumps(
+            {
+                "ticker": ticker,
+                "company_name": company_name,
+                "fiscal_year": fiscal_year,
+                "revenue_lines": lines_data,
+                "instructions": (
+                    "For each revenue_line, extract a description from evidence_text using company language. "
+                    "Priority sources: [ITEM1] for business descriptions, [ITEM7] for MD&A context, [TABLE CONTEXT] for footnotes. "
+                    "Focus on what products/services are included in this revenue category. "
+                    "If the evidence doesn't describe this line, return empty string."
+                ),
+                "output_schema": {
+                    "rows": [
+                        {
+                            "revenue_line": "string (exact match from input)",
+                            "description": "string (1-2 sentences in company language, or empty)",
+                        }
+                    ]
+                },
+            },
+            ensure_ascii=False,
+        )
         
-    except Exception as e:
-        print(f"[{ticker}] Warning: describe_revenue_lines failed: {e}", flush=True)
-        # Return empty descriptions on failure
-        return {"rows": [{"revenue_line": l.get("item", ""), "description": ""} for l in revenue_lines]}
+        try:
+            result = llm.json_call(system=system, user=user, max_output_tokens=2500)
+            rows = result.get("rows", [])
+            
+            for row in rows:
+                line = row.get("revenue_line", "")
+                desc = row.get("description", "")
+                if line:
+                    llm_descriptions[line] = desc
+                
+        except Exception as e:
+            print(f"[{ticker}] Warning: describe_revenue_lines LLM call failed: {e}", flush=True)
+    
+    # STEP 3: Merge footnote descriptions with LLM descriptions
+    # Footnote descriptions take priority (they are direct quotes from the filing)
+    output_rows = []
+    for line_info in revenue_lines:
+        item = line_info.get("item", "")
+        # Priority: footnote > LLM
+        description = footnote_descriptions.get(item, "") or llm_descriptions.get(item, "")
+        output_rows.append({
+            "revenue_line": item,
+            "description": description,
+        })
+    
+    return {"rows": output_rows}
 
