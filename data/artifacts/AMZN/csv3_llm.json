@@ -2,129 +2,63 @@
   "rows": [
     {
       "segment": "AWS",
-      "business_item": "compute",
-      "business_item_short_description": "On-demand compute technology services offered by AWS.",
-      "business_item_long_description": "AWS provides on-demand compute services that enable developers and enterprises to run applications and workloads efficiently. These services support a wide range of computing needs from startups to large organizations.",
-      "evidence_span": "AWS serves developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, by offering a broad set of on-demand technology services such as compute, storage, database, analytics, and machine learning.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "storage",
-      "business_item_short_description": "On-demand storage technology services offered by AWS.",
-      "business_item_long_description": "AWS offers scalable and secure storage services that cater to various data storage needs for developers and enterprises. These services support data management and backup solutions across different industries.",
-      "evidence_span": "AWS serves developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, by offering a broad set of on-demand technology services such as compute, storage, database, analytics, and machine learning.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "database",
-      "business_item_short_description": "On-demand database technology services offered by AWS.",
-      "business_item_long_description": "AWS provides database services that allow users to create, manage, and scale databases efficiently. These services support various database engines and are designed for high availability and security.",
-      "evidence_span": "AWS serves developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, by offering a broad set of on-demand technology services such as compute, storage, database, analytics, and machine learning.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "analytics",
-      "business_item_short_description": "On-demand analytics technology services offered by AWS.",
-      "business_item_long_description": "AWS offers analytics services that help organizations process and analyze large volumes of data to gain insights. These services support data visualization, reporting, and real-time analytics.",
-      "evidence_span": "AWS serves developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, by offering a broad set of on-demand technology services such as compute, storage, database, analytics, and machine learning.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "machine learning",
-      "business_item_short_description": "On-demand machine learning technology services offered by AWS.",
-      "business_item_long_description": "AWS provides machine learning services that enable developers and enterprises to build, train, and deploy machine learning models at scale. These services support various AI applications and workflows.",
-      "evidence_span": "AWS serves developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, by offering a broad set of on-demand technology services such as compute, storage, database, analytics, and machine learning.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "sponsored ads",
-      "business_item_short_description": "Advertising services offered by AWS to sellers, vendors, publishers, and authors.",
-      "business_item_long_description": "AWS offers sponsored ads as part of its advertising services, helping sellers, vendors, publishers, and authors promote their products and content. These ads are targeted to reach relevant audiences effectively.",
-      "evidence_span": "Additionally, AWS offers advertising services to sellers, vendors, publishers, and authors through sponsored ads, display, and video advertising.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "AWS",
-      "business_item": "display advertising",
-      "business_item_short_description": "Display advertising services offered by AWS.",
-      "business_item_long_description": "AWS provides display advertising services that allow sellers, vendors, publishers, and authors to showcase their products and content visually across various platforms. This service enhances brand visibility and engagement.",
-      "evidence_span": "Additionally, AWS offers advertising services to sellers, vendors, publishers, and authors through sponsored ads, display, and video advertising.",
-      "evidence_validated": true,
-      "item_in_source": false
-    },
-    {
-      "segment": "AWS",
-      "business_item": "video advertising",
-      "business_item_short_description": "Video advertising services offered by AWS.",
-      "business_item_long_description": "AWS offers video advertising services that enable sellers, vendors, publishers, and authors to promote their products and content through video formats. This service helps capture audience attention and drive conversions.",
-      "evidence_span": "Additionally, AWS offers advertising services to sellers, vendors, publishers, and authors through sponsored ads, display, and video advertising.",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "International",
       "business_item": "AWS",
-      "business_item_short_description": "AWS serves developers and enterprises with cloud services.",
-      "business_item_long_description": "AWS offers cloud computing services to developers and enterprises, supporting their technological and operational needs. It is part of the International segment's offerings to business customers.",
-      "evidence_span": "This segment also serves developers and enterprises through AWS and offers programs for content creators.",
+      "business_item_short_description": "AWS is listed as a group of similar products and services with net sales reported for 2022, 2023, and 2024.",
+      "business_item_long_description": "AWS is included in the breakdown of net sales by groups of similar products and services, which also have similar economic characteristics. The net sales for AWS are reported as $80,096 million in 2022, $90,757 million in 2023, and $107,556 million in 2024.",
+      "evidence_span": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: ... AWS 80,096 90,757 107,556",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
-      "segment": "North America",
-      "business_item": "fast, free shipping",
-      "business_item_short_description": "Fast, free shipping on tens of millions of items.",
-      "business_item_long_description": "The North America segment offers fast, free shipping on tens of millions of items, ensuring quick delivery to customers. This service is a key benefit provided to customers in this region.",
-      "evidence_span": "The North America segment provides fast, free shipping on tens of millions of items",
+      "segment": "Advertising services",
+      "business_item": "Advertising services",
+      "business_item_short_description": "Advertising services are a group of similar products and services with similar economic characteristics, as reported in Amazon's net sales.",
+      "business_item_long_description": "Advertising services are listed as a distinct group in Amazon's net sales by product and service type. The segment includes programs such as sponsored ads, display, and video advertising, contributing significantly to Amazon's revenue.",
+      "evidence_span": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: ... Advertising services (4) 37,739 46,906 56,214",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
-      "segment": "North America",
-      "business_item": "award-winning movies and series",
-      "business_item_short_description": "Access to award-winning movies and series.",
-      "business_item_long_description": "Customers in the North America segment have access to award-winning movies and series, enhancing the entertainment options available through Amazon's services.",
-      "evidence_span": "access to award-winning movies and series",
+      "segment": "Online stores",
+      "business_item": "Online stores",
+      "business_item_short_description": "Net sales for Online stores are reported as a group of similar products and services.",
+      "business_item_long_description": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows: Online stores generated $220,004 million in 2022, $231,872 million in 2023, and $247,029 million in 2024. These figures represent the Online stores segment.",
+      "evidence_span": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: Online stores (1) $ 220,004 $ 231,872 $ 247,029",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
-      "segment": "North America",
-      "business_item": "live sports",
-      "business_item_short_description": "Access to live sports content.",
-      "business_item_long_description": "The segment provides customers with access to live sports, adding to the variety of entertainment and content offerings available.",
-      "evidence_span": "live sports, and other benefits",
+      "segment": "Physical stores",
+      "business_item": "Physical stores",
+      "business_item_short_description": "Physical stores is a group of similar products and services with similar economic characteristics reported by Amazon.",
+      "business_item_long_description": "Physical stores is listed as a distinct group in Amazon's net sales breakdown, with reported sales figures for the years 2022, 2023, and 2024. The segment represents a specific category of Amazon's business operations.",
+      "evidence_span": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: Online stores (1) $ 220,004 $ 231,872 $ 247,029 Physical stores (2) 18,963 20,030 21,215",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
-      "segment": "North America",
-      "business_item": "North America fulfillment networks",
-      "business_item_short_description": "Fulfillment of customer orders through North America fulfillment networks.",
-      "business_item_long_description": "Customer orders in the North America segment are fulfilled through Amazon-operated North America fulfillment networks, ensuring efficient processing and delivery.",
-      "evidence_span": "Customer orders are fulfilled through North America fulfillment networks operated by Amazon",
+      "segment": "Subscription services",
+      "business_item": "Amazon Prime",
+      "business_item_short_description": "Includes annual and monthly fees associated with Amazon Prime memberships.",
+      "business_item_long_description": "Amazon Prime is a subscription service for which Amazon collects annual and monthly fees. It is included in the company's reported subscription services segment, alongside other digital offerings.",
+      "evidence_span": "Includes annual and monthly fees associated with Amazon Prime memberships, as well as digital video, audiobook, digital music, e-book, and other non-AWS subscription services.",
       "evidence_validated": true,
-      "item_in_source": false
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
-      "segment": "North America",
-      "business_item": "digital delivery",
-      "business_item_short_description": "Delivery of products through digital means.",
-      "business_item_long_description": "The segment includes digital delivery as a method to fulfill customer orders, complementing physical shipping and store options.",
-      "evidence_span": "digital delivery, and physical stores",
+      "segment": "Third-party seller services",
+      "business_item": "Third-party seller services",
+      "business_item_short_description": "Net sales for Third-party seller services are reported for the years 2022, 2023, and 2024.",
+      "business_item_long_description": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: ... Third-party seller services (3) 117,716 140,053 156,146. This line item represents the revenue generated from third-party seller services over the specified years.",
+      "evidence_span": "Net sales by groups of similar products and services, which also have similar economic characteristics, is as follows (in millions): Year Ended December 31, 2022 2023 2024 Net Sales: ... Third-party seller services (3) 117,716 140,053 156,146",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     }
   ]
 }

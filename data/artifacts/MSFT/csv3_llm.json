@@ -1,148 +1,154 @@
 {
   "rows": [
     {
-      "segment": "Intelligent Cloud",
-      "business_item": "Azure",
-      "business_item_short_description": "A cloud service supporting modern business and developers.",
-      "business_item_long_description": "Azure is a cloud service included in the Intelligent Cloud segment that supports modern business and developers by providing cloud infrastructure and AI offerings. It is part of the server products and cloud services offered by Microsoft.",
-      "evidence_span": "It primarily consists of server products and cloud services such as Azure, GitHub, and Nuance Healthcare cloud services",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "Intelligent Cloud",
-      "business_item": "GitHub",
-      "business_item_short_description": "A cloud service supporting modern business and developers.",
-      "business_item_long_description": "GitHub is a cloud service included in the Intelligent Cloud segment that supports modern business and developers by providing cloud infrastructure and AI offerings. It is part of the server products and cloud services offered by Microsoft.",
-      "evidence_span": "It primarily consists of server products and cloud services such as Azure, GitHub, and Nuance Healthcare cloud services",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "Intelligent Cloud",
-      "business_item": "Nuance Healthcare cloud services",
-      "business_item_short_description": "Cloud services focused on healthcare.",
-      "business_item_long_description": "Nuance Healthcare cloud services are part of the Intelligent Cloud segment, providing cloud-based solutions specifically for the healthcare industry. These services support modern business and developers with cloud infrastructure and AI offerings.",
-      "evidence_span": "It primarily consists of server products and cloud services such as Azure, GitHub, and Nuance Healthcare cloud services",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "Intelligent Cloud",
-      "business_item": "Enterprise Support Services",
-      "business_item_short_description": "Enterprise and partner services supporting IT professionals.",
-      "business_item_long_description": "Enterprise Support Services are part of the Intelligent Cloud segment, offering professional services to enhance productivity and efficiency for IT professionals and developers. These services are included in the enterprise and partner services category.",
-      "evidence_span": "as well as enterprise and partner services including Enterprise Support Services and Microsoft Partner Network",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
-      "segment": "Intelligent Cloud",
-      "business_item": "Microsoft Partner Network",
-      "business_item_short_description": "A network of enterprise and partner services.",
-      "business_item_long_description": "Microsoft Partner Network is part of the Intelligent Cloud segment, providing enterprise and partner services that support IT professionals and developers. It is included alongside Enterprise Support Services in the segment's offerings.",
-      "evidence_span": "as well as enterprise and partner services including Enterprise Support Services and Microsoft Partner Network",
-      "evidence_validated": true,
-      "item_in_source": true
-    },
-    {
       "segment": "More Personal Computing",
-      "business_item": "Windows OEM licensing",
-      "business_item_short_description": "Licensing of Windows operating system to original equipment manufacturers.",
-      "business_item_long_description": "Windows OEM licensing involves providing Windows operating system licenses to original equipment manufacturers for pre-installation on new devices. This enables personalized technology experiences through Windows-based devices.",
-      "evidence_span": "It includes Windows and Devices such as Windows OEM licensing and Surface devices",
+      "business_item": "Windows",
+      "business_item_short_description": "The Windows operating system is designed to deliver a more personal computing experience for users.",
+      "business_item_long_description": "The Windows operating system is designed to deliver a more personal computing experience for users by enabling consistency of experience, applications, and information across their devices. Windows OEM revenue is impacted significantly by the number of Windows operating system licenses purchased by OEMs, which they pre-install on the devices they sell.",
+      "evidence_span": "The Windows operating system is designed to deliver a more personal computing experience for users by enabling consistency of experience, applications, and information across their devices. Windows OEM revenue is impacted significantly by the number of Windows operating system licenses purchased by OEMs, which they pre-install on the devices they sell.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
       "business_item": "Surface",
-      "business_item_short_description": "Microsoft's line of personal computing devices.",
-      "business_item_long_description": "Surface devices are a range of personal computing hardware products designed to deliver personalized technology experiences. They are part of the Windows and Devices category within the More Personal Computing segment.",
-      "evidence_span": "It includes Windows and Devices such as Windows OEM licensing and Surface devices",
+      "business_item_short_description": "Surface is designed to help organizations, students, and consumers be more productive.",
+      "business_item_long_description": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Surface is designed to help organizations, students, and consumers be more productive.",
+      "evidence_span": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Our devices are designed to enable people and organizations to connect to the people and content that matter most using Windows and integrated Microsoft products and services. Surface is designed to help organizations, students, and consumers be more productive.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
-      "business_item": "Xbox hardware",
-      "business_item_short_description": "Gaming consoles and related hardware products.",
-      "business_item_long_description": "Xbox hardware refers to Microsoft's gaming consoles and associated devices that support gaming experiences. This includes the physical consoles used to access Xbox content and services.",
-      "evidence_span": "Gaming with Xbox hardware and content including Xbox Game Pass and Xbox Cloud Gaming",
+      "business_item": "Copilot+ PCs",
+      "business_item_short_description": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories.",
+      "business_item_long_description": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Our devices are designed to enable people and organizations to connect to the people and content that matter most using Windows and integrated Microsoft products and services.",
+      "evidence_span": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Our devices are designed to enable people and organizations to connect to the people and content that matter most using Windows and integrated Microsoft products and services.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
+    },
+    {
+      "segment": "More Personal Computing",
+      "business_item": "PC accessories",
+      "business_item_short_description": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories.",
+      "business_item_long_description": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Our devices are designed to enable people and organizations to connect to the people and content that matter most using Windows and integrated Microsoft products and services.",
+      "evidence_span": "We design and sell devices, such as Surface (including Copilot+ PCs) and PC accessories. Our devices are designed to enable people and organizations to connect to the people and content that matter most using Windows and integrated Microsoft products and services.",
+      "evidence_validated": true,
+      "item_in_source": true,
+      "item_in_evidence": true
+    },
+    {
+      "segment": "More Personal Computing",
+      "business_item": "Xbox",
+      "business_item_short_description": "Xbox enables people to connect and share online gaming experiences that are accessible on Xbox consoles, Windows-enabled devices, and other devices.",
+      "business_item_long_description": "Xbox enables people to connect and share online gaming experiences that are accessible on Xbox consoles, Windows-enabled devices, and other devices. Xbox is designed to benefit users by providing access to a network of certified applications and services and to benefit our developer and partner ecosystems by providing access to a large customer base.",
+      "evidence_span": "Xbox enables people to connect and share online gaming experiences that are accessible on Xbox consoles, Windows-enabled devices, and other devices. Xbox is designed to benefit users by providing access to a network of certified applications and services and to benefit our developer and partner ecosystems by providing access to a large customer base.",
+      "evidence_validated": true,
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
       "business_item": "Xbox Game Pass",
-      "business_item_short_description": "Subscription service for Xbox games.",
-      "business_item_long_description": "Xbox Game Pass is a subscription service that provides access to a wide library of Xbox games. It is part of the gaming content and services offered within the More Personal Computing segment.",
-      "evidence_span": "Gaming with Xbox hardware and content including Xbox Game Pass and Xbox Cloud Gaming",
+      "business_item_short_description": "Xbox Game Pass is a subscription service and gaming community with access to a curated library of first- and third-party titles.",
+      "business_item_long_description": "These unique gaming experiences are the cornerstone of Xbox Game Pass, a subscription service and gaming community with access to a curated library of first- and third-party titles. The gamer remains at the heart of the Xbox ecosystem.",
+      "evidence_span": "These unique gaming experiences are the cornerstone of Xbox Game Pass, a subscription service and gaming community with access to a curated library of first- and third-party titles. The gamer remains at the heart of the Xbox ecosystem.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
       "business_item": "Xbox Cloud Gaming",
-      "business_item_short_description": "Cloud-based gaming service for Xbox games.",
-      "business_item_long_description": "Xbox Cloud Gaming allows users to stream Xbox games over the cloud without the need for local hardware. It enhances gaming accessibility and is included in the gaming content and services.",
-      "evidence_span": "Gaming with Xbox hardware and content including Xbox Game Pass and Xbox Cloud Gaming",
+      "business_item_short_description": "Our gaming platform competes with other console platforms. We believe our gaming platform is effectively po",
+      "business_item_long_description": "Xbox and our cloud gaming services face competition from various online gaming ecosystems and game streaming services. We also compete with other providers of entertainment services such as video streaming platforms.",
+      "evidence_span": "Xbox and our cloud gaming services face competition from various online gaming ecosystems and game streaming services. We also compete with other providers of entertainment services such as video streaming platforms.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": false
     },
     {
       "segment": "More Personal Computing",
       "business_item": "Bing",
-      "business_item_short_description": "Microsoft's search engine platform.",
-      "business_item_long_description": "Bing is Microsoft's search engine that provides search and news advertising services. It is part of the segment's focus on search and news advertising to enhance user engagement.",
-      "evidence_span": "Search and news advertising through Bing, Microsoft Edge, and Microsoft News",
+      "business_item_short_description": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement.",
+      "business_item_long_description": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement, while our technology platform enables accelerated delivery of digital advertising solutions.",
+      "evidence_span": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement, while our technology platform enables accelerated delivery of digital advertising solutions.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
-      "business_item": "Microsoft Edge",
-      "business_item_short_description": "Microsoft's web browser.",
-      "business_item_long_description": "Microsoft Edge is a web browser that supports search and news advertising. It is part of the More Personal Computing segment's offerings to enhance user engagement across devices.",
-      "evidence_span": "Search and news advertising through Bing, Microsoft Edge, and Microsoft News",
+      "business_item": "Copilot",
+      "business_item_short_description": "Microsoft Copilot is a digital companion designed to inform, entertain, and inspire.",
+      "business_item_long_description": "Microsoft Copilot is a digital companion designed to inform, entertain, and inspire. Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement.",
+      "evidence_span": "Microsoft Copilot is a digital companion designed to inform, entertain, and inspire. Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement, while our technology platform enables accelerated delivery of digital advertising solutions.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "More Personal Computing",
       "business_item": "Microsoft News",
-      "business_item_short_description": "News aggregation and delivery service.",
-      "business_item_long_description": "Microsoft News provides news content and advertising services as part of the search and news advertising category. It aims to enhance user engagement through personalized news experiences.",
-      "evidence_span": "Search and news advertising through Bing, Microsoft Edge, and Microsoft News",
+      "business_item_short_description": "Search and news advertising, comprising Bing and Copilot, Microsoft News, Microsoft Edge, and third-party affiliates.",
+      "business_item_long_description": "Search and news advertising, comprising Bing and Copilot, Microsoft News, Microsoft Edge, and third-party affiliates. Our Search and news advertising business is designed to deliver relevant search, native, and display advertising to a global audience.",
+      "evidence_span": "Search and news advertising, comprising Bing and Copilot, Microsoft News, Microsoft Edge, and third-party affiliates. Our Search and news advertising business is designed to deliver relevant search, native, and display advertising to a global audience.",
       "evidence_validated": true,
-      "item_in_source": true
+      "item_in_source": true,
+      "item_in_evidence": true
+    },
+    {
+      "segment": "More Personal Computing",
+      "business_item": "Microsoft Edge",
+      "business_item_short_description": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement.",
+      "business_item_long_description": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement, while our technology platform enables accelerated delivery of digital advertising solutions.",
+      "evidence_span": "Our Microsoft Edge browser and Bing search engine with Copilot are key tools to enable user acquisition and engagement, while our technology platform enables accelerated delivery of digital advertising solutions.",
+      "evidence_validated": true,
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "Productivity and Business Processes",
-      "business_item": "Microsoft 365 Commercial and Consumer products and cloud services",
-      "business_item_short_description": "A portfolio of productivity, communication, and information services across various devices and platforms.",
-      "business_item_long_description": "Microsoft 365 Commercial and Consumer products and cloud services provide productivity, communication, and information services designed for various devices and platforms. These services support business productivity and collaboration.",
-      "evidence_span": "It features Microsoft 365 Commercial and Consumer products and cloud services",
+      "business_item": "Microsoft 365 Commercial products and cloud services",
+      "business_item_short_description": "Microsoft 365 Commercial products and cloud services include Microsoft 365 Commercial cloud, comprising Microsoft 365 Commercial, Enterprise Mobility + Security, and other related services.",
+      "business_item_long_description": "Microsoft 365 Commercial products and cloud services primarily comprise Microsoft 365 Commercial cloud, which includes Microsoft 365 Commercial, Enterprise Mobility + Security, the cloud portion of Windows Commercial, the per-user portion of Power BI, Exchange, SharePoint, Microsoft Teams, Microsoft 365 Security and Compliance, and Microsoft 365 Copilot. They also include Microsoft 365 Commercial products, comprising Windows Commercial on-premises and Office licensed on-premises.",
+      "evidence_span": "This segment primarily comprises: • Microsoft 365 Commercial products and cloud services, including Microsoft 365 Commercial cloud, comprising Microsoft 365 Commercial, Enterprise Mobility + Security, the cloud portion of Windows Commercial, the per-user portion of Power BI, Exchange, SharePoint, Microsoft Teams, Microsoft 365 Security and Compliance, and Microsoft 365 Copilot; and Microsoft 365 Commercial products, comprising Windows Commercial on-premises and Office licensed on-premises.",
       "evidence_validated": true,
-      "item_in_source": false
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "Productivity and Business Processes",
-      "business_item": "LinkedIn with its Talent, Marketing, Premium, and Sales Solutions",
-      "business_item_short_description": "Professional networking services including Talent, Marketing, Premium, and Sales Solutions.",
-      "business_item_long_description": "LinkedIn offers professional networking services that include Talent, Marketing, Premium, and Sales Solutions. These services support professional networking and business growth.",
-      "evidence_span": "LinkedIn with its Talent, Marketing, Premium, and Sales Solutions",
+      "business_item": "Microsoft 365 Consumer products and cloud services",
+      "business_item_short_description": "Microsoft 365 Consumer products and cloud services include Microsoft 365 Consumer subscriptions, Office licensed on-premises, and other consumer services.",
+      "business_item_long_description": "Microsoft 365 Consumer products and cloud services include Microsoft 365 Consumer subscriptions, Office licensed on-premises, and other consumer services. Growth depends on reaching new users, adding value with new features including AI tools, and expanding product and service offerings into new markets.",
+      "evidence_span": "• Microsoft 365 Consumer products and cloud services, including Microsoft 365 Consumer subscriptions, Office licensed on-premises, and other consumer services.",
       "evidence_validated": true,
-      "item_in_source": false
+      "item_in_source": true,
+      "item_in_evidence": true
     },
     {
       "segment": "Productivity and Business Processes",
-      "business_item": "Dynamics products and cloud services including Dynamics 365 ERP and CRM applications",
-      "business_item_short_description": "Business applications including ERP and CRM solutions delivered via cloud services.",
-      "business_item_long_description": "Dynamics products and cloud services include Dynamics 365 ERP and CRM applications that provide intelligent cloud-based business solutions. These tools help businesses manage operations and customer relationships effectively.",
-      "evidence_span": "Dynamics products and cloud services including Dynamics 365 ERP and CRM applications",
+      "business_item": "LinkedIn",
+      "business_item_short_description": "LinkedIn connects the world’s professionals to make them more productive and successful and transforms the way companies hire, market, sell, and learn.",
+      "business_item_long_description": "LinkedIn connects the world’s professionals to make them more productive and successful and transforms the way companies hire, market, sell, and learn. In addition to LinkedIn’s free services, LinkedIn offers monetized solutions designed to offer AI-enabled insights and productivity: Talent Solutions, Marketing Solutions, Premium Subscriptions, and Sales Solutions.",
+      "evidence_span": "• LinkedIn, including Talent Solutions, Marketing Solutions, Premium Subscriptions, and Sales Solutions. LinkedIn connects the world’s professionals to make them more productive and successful and transforms the way companies hire, market, sell, and learn.",
       "evidence_validated": true,
-      "item_in_source": false
+      "item_in_source": true,
+      "item_in_evidence": true
+    },
+    {
+      "segment": "Productivity and Business Processes",
+      "business_item": "Dynamics products and cloud services",
+      "business_item_short_description": "Dynamics provides cloud-based and on-premises business solutions for financial management, ERP, CRM, and supply chain management.",
+      "business_item_long_description": "Dynamics provides cloud-based and on-premises business solutions for financial management, enterprise resource planning (“ERP”), customer relationship management (“CRM”), and supply chain management, as well as agentic AI and other low code application development platforms, for small and medium businesses, large organizations, and divisions of global enterprises. Dynamics revenue is driven by the number of users licensed and applications consumed, expansion of average revenue per user, and the continued shift to Dynamics 365.",
+      "evidence_span": "• Dynamics products and cloud services, including Dynamics 365, comprising a set of intelligent, cloud-based applications across ERP, CRM, Power Apps, and Power Automate; and on-premises ERP and CRM applications. Dynamics provides cloud-based and on-premises business solutions for financial management, enterprise resource planning (“ERP”), customer relationship management (“CRM”), and supply chain management, as well as agentic AI and other low code application development platforms, for small and medium businesses, large organizations, and divisions of global enterprises.",
+      "evidence_validated": true,
+      "item_in_source": true,
+      "item_in_evidence": true
     }
   ]
 }

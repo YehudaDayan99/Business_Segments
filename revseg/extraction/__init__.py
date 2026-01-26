@@ -6,6 +6,7 @@ from revseg.extraction.core import (
     extract_revenue_unified,
     extract_with_layout_fallback,
     extract_line_items_granular,
+    detect_dimension,
 )
 from revseg.extraction.matching import (
     fuzzy_match_segment,
@@ -23,6 +24,7 @@ __all__ = [
     "extract_revenue_unified",
     "extract_with_layout_fallback",
     "extract_line_items_granular",
+    "detect_dimension",
     "fuzzy_match_segment",
     "tokenize_label",
     "build_segment_matcher",

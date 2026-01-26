@@ -1,0 +1,28 @@
+{
+  "rows": [
+    {
+      "revenue_line": "Compute",
+      "description": ""
+    },
+    {
+      "revenue_line": "Networking",
+      "description": ""
+    },
+    {
+      "revenue_line": "Gaming",
+      "description": ""
+    },
+    {
+      "revenue_line": "Professional Visualization",
+      "description": ""
+    },
+    {
+      "revenue_line": "Automotive",
+      "description": ""
+    },
+    {
+      "revenue_line": "OEM and Other",
+      "description": ""
+    }
+  ]
+}

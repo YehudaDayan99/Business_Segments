@@ -103,6 +103,48 @@ def validate_extraction(
     if len(segment_revenues) >= min_segments and segment_sum > 0:
         # Check that segments are all positive (no weird negative segments)
         all_positive = all(v >= 0 for v in segment_revenues.values())
+        
+        # Sanity check: if external_total is available, segment_sum should be within reasonable range
+        # Reject if segment_sum is less than 10% of external_total (clearly wrong table)
+        if external_total is not None and external_total > 0:
+            ratio = segment_sum / external_total
+            if ratio < 0.1:  # Less than 10% of expected revenue
+                return ValidationResult(
+                    ok=False,
+                    table_total=table_total,
+                    segment_sum=segment_sum,
+                    adjustment_sum=adjustment_sum,
+                    external_total=external_total,
+                    delta_pct=None,
+                    notes=f"FAIL: segment_sum ({segment_sum:,}) is only {ratio*100:.2f}% of external_total ({external_total:,}) - likely wrong table"
+                )
+        
+        # Check that segment names don't look like income statement or expense items
+        # Use substring matching for more robust detection
+        income_statement_keywords = [
+            "net income", "gross margin", "operating expense", "operating income",
+            "income from operation", "earnings per share", "diluted share", "basic share",
+            "cost of revenue", "cost of sales", "gross profit", "interest expense",
+            "interest income", "tax expense", "income tax", "depreciation",
+            "amortization", "ebitda", "net profit", "net loss", "net revenue",
+            "research and development", "r&d expense", "administrative expense",
+            "selling expense", "marketing expense", "total expense", "% of",
+            "eps", "per share"
+        ]
+        segment_names_lower = [name.lower() for name in segment_revenues.keys()]
+        for name in segment_names_lower:
+            for keyword in income_statement_keywords:
+                if keyword in name:
+                    return ValidationResult(
+                        ok=False,
+                        table_total=table_total,
+                        segment_sum=segment_sum,
+                        adjustment_sum=adjustment_sum,
+                        external_total=external_total,
+                        delta_pct=None,
+                        notes=f"FAIL: segment name '{name}' contains income statement indicator '{keyword}' - likely wrong table"
+                    )
+        
         if all_positive:
             return ValidationResult(
                 ok=True,

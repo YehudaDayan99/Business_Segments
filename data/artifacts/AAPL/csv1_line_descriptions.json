@@ -1,0 +1,24 @@
+{
+  "rows": [
+    {
+      "revenue_line": "iPhone",
+      "description": "iPhone is the Company’s line of smartphones based on its iOS operating system. The iPhone line includes iPhone 17 Pro, iPhone Air™, iPhone 17, iPhone 16 and iPhone 16e."
+    },
+    {
+      "revenue_line": "Mac",
+      "description": "Mac is the Company’s line of personal computers based on its macOS operating system. The Mac line includes laptops MacBook Air and MacBook Pro, as well as desktops iMac, Mac mini, Mac Studio and Mac Pro."
+    },
+    {
+      "revenue_line": "iPad",
+      "description": "iPad is the Company’s line of multipurpose tablets based on its iPadOS operating system. The iPad line includes iPad Pro, iPad Air, iPad and iPad mini."
+    },
+    {
+      "revenue_line": "Wearables, Home and Accessories",
+      "description": "Wearables includes smartwatches, wireless headphones and spatial computers. Home includes Apple TV 4K, HomePod and HomePod mini, and Accessories includes Apple-branded and third-party accessories."
+    },
+    {
+      "revenue_line": "Services (1)",
+      "description": "Services net sales include amortization of the deferred value of services bundled in the sales price of certain products. Services net sales increased during 2025 compared to 2024 primarily due to higher net sales from advertising, the App Store and cloud services."
+    }
+  ]
+}

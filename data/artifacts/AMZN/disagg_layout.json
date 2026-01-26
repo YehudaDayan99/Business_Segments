@@ -1,16 +1,17 @@
 {
-  "segment_col": 0,
+  "segment_col": null,
   "item_col": 0,
   "year_cols": {
-    "2023": 3,
-    "2024": 9
+    "2022": 4,
+    "2023": 10,
+    "2024": 16
   },
   "header_rows": [
     1,
     2
   ],
   "total_row_regex": "Consolidated",
-  "exclude_row_regex": "Year-over-year|Net Sales Mix",
+  "exclude_row_regex": "",
   "units_multiplier": 1000000,
-  "notes": "Segment and Item columns are the same (column 0) with segment names like North America, International, AWS. Year columns are recent fiscal years 2023 and 2024 at columns 3 and 9. Total row labeled 'Consolidated'. Exclude growth and mix rows."
+  "notes": "No segment column; item/product in first column; years in columns 4,10,16; total row labeled 'Consolidated'; units in millions"
 }

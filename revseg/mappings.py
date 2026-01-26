@@ -61,39 +61,65 @@ GOOGL_ADJUSTMENT_ITEMS: set = {
 # AAPL: Product categories are the line items, segment is effectively "Apple"
 # No mapping needed - items are already at the right granularity
 
-# AMZN: Segments are North America, International, AWS
-# "Consolidated" is a total row, not a segment
+# AMZN: Two disclosure dimensions exist:
+# 1. Segments: North America, International, AWS
+# 2. Product/service categories: Online stores, Physical stores, Third-party seller services,
+#    Subscription services, Advertising services, AWS, Other
+#
+# For maximum granularity, prefer the product/service table (dimension=product_service)
 AMZN_SUBTOTAL_ITEMS: set = {
     "Consolidated",
     "Total",
+    "Total net sales",
 }
 
-# META: Family of Apps is a subtotal (= Advertising + Other revenue)
-# Reality Labs is a standalone segment
+# AMZN product/service items (from "Net sales by groups of similar products and services")
+AMZN_PRODUCT_SERVICE_ITEMS: set = {
+    "Online stores",
+    "Physical stores",
+    "Third-party seller services",
+    "Subscription services",
+    "Advertising services",
+    "AWS",
+    "Other",
+}
+
+# META: Revenue sources map to segments per 10-K disclosure
+# Family of Apps generates substantially all advertising revenue
+# Reality Labs reports segment-level "Revenue"
 META_ITEM_TO_SEGMENT: Dict[str, str] = {
-    "Advertising": "Family of Apps",
-    "Other revenue": "Family of Apps",
-    "Reality Labs": "Reality Labs",
+    "Advertising": "Family of Apps (FoA)",
+    "Other revenue": "Family of Apps (FoA)",
+    "Revenue": "Reality Labs (RL)",  # RL's segment revenue line
 }
 
 META_SUBTOTAL_ITEMS: set = {
-    "Family of Apps",  # Subtotal of Advertising + Other revenue
+    # NOTE: "Family of Apps" is a reportable segment, NOT a subtotal - do not skip it
     "Total revenue",
     "Total",
 }
 
-# NVDA: The revenue table shows "Revenue by End Market"
-# Data Center (subtotal containing Compute + Networking)
-# Gaming, Professional Visualization, Automotive, OEM and Other are standalone items
+# META revenue source items (for dimension=revenue_source extraction)
+META_REVENUE_SOURCE_ITEMS: set = {
+    "Advertising",
+    "Other revenue",
+}
+
+# NVDA: Maps end market items to reportable segments per 10-K
+# Reportable segments: Compute & Networking, Graphics
+# Per ASC 280, Compute+Networking = "Compute & Networking" segment
+# Gaming+Professional Visualization = "Graphics" segment
+# Automotive and OEM and Other are not attributed to a reportable segment
 NVDA_ITEM_TO_SEGMENT: Dict[str, str] = {
-    # Data Center sub-items
-    "Compute": "Data Center",
-    "Networking": "Data Center",
-    # Standalone items (report as their own segment)
-    "Gaming": "Gaming",
-    "Professional Visualization": "Professional Visualization",
-    "Automotive": "Automotive",
-    "OEM and Other": "OEM and Other",
+    # Compute & Networking segment (formerly Data Center)
+    "Compute": "Compute & Networking",
+    "Networking": "Compute & Networking",
+    # Graphics segment
+    "Gaming": "Graphics",
+    "Professional Visualization": "Graphics",
+    # No segment attribution for these - will use "Product/Service disclosure"
+    # "Automotive": None,
+    # "OEM and Other": None,
 }
 
 NVDA_SUBTOTAL_ITEMS: set = {

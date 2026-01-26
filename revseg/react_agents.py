@@ -18,12 +18,84 @@ _ITEM8_RE = re.compile(
     r"\bitem\s*8\b|\bfinancial statements\b|\bnotes to (?:the )?financial statements\b",
     re.IGNORECASE,
 )
-_ITEM7_RE = re.compile(r"\bitem\s*7\b|\bmanagement['’]s discussion\b|\bmd&a\b", re.IGNORECASE)
+_ITEM7_RE = re.compile(r"\bitem\s*7\b|\bmanagement['']s discussion\b|\bmd&a\b", re.IGNORECASE)
+_ITEM1_RE = re.compile(r"\bitem\s*1[.\s]+business\b|\bitem\s*1\b(?![\d])", re.IGNORECASE)
 _SEGMENT_NOTE_RE = re.compile(r"\bsegment(s)?\b|\breportable segment(s)?\b", re.IGNORECASE)
+
+# Revenue line label expansions for better matching
+_LABEL_EXPANSIONS: Dict[str, List[str]] = {
+    "advertising": ["advertising", "ad revenue", "ads", "advertising services"],
+    "subscription": ["subscription", "subscriptions", "subscriber"],
+    "services": ["services", "service revenue", "service offerings"],
+    "cloud": ["cloud", "cloud services", "cloud computing"],
+    "gaming": ["gaming", "game", "games"],
+    "compute": ["compute", "data center", "computing"],
+    "networking": ["networking", "network"],
+    "professional visualization": ["professional visualization", "visualization", "professional"],
+    "automotive": ["automotive", "auto", "vehicle"],
+    "online stores": ["online stores", "online store", "e-commerce"],
+    "physical stores": ["physical stores", "physical store", "retail stores"],
+    "third-party seller": ["third-party seller", "third party seller", "marketplace", "3p seller"],
+    "aws": ["aws", "amazon web services", "cloud services"],
+}
 
 
 def _clean(s: str) -> str:
     return _WS_RE.sub(" ", (s or "").strip())
+
+
+def _extract_section(text: str, section_pattern: re.Pattern, max_chars: int = 50000) -> str:
+    """
+    Extract a specific section from the filing text.
+    
+    Finds the section start using the pattern and extracts up to max_chars,
+    stopping at the next major section boundary (Item X).
+    """
+    if not text:
+        return ""
+    
+    match = section_pattern.search(text)
+    if not match:
+        return ""
+    
+    start_idx = match.start()
+    
+    # Find the next section boundary (Item followed by number)
+    next_item_pattern = re.compile(r"\bitem\s+\d+", re.IGNORECASE)
+    search_start = start_idx + len(match.group())
+    
+    end_idx = start_idx + max_chars
+    for next_match in next_item_pattern.finditer(text, search_start):
+        if next_match.start() > start_idx + 500:  # Must be at least 500 chars after start
+            end_idx = min(end_idx, next_match.start())
+            break
+    
+    return text[start_idx:end_idx]
+
+
+def _expand_search_terms(label: str) -> List[str]:
+    """
+    Expand a revenue line label into multiple search terms for better matching.
+    Returns the original label plus any known variations.
+    """
+    terms = [label.lower()]
+    label_low = label.lower().strip()
+    
+    # Check for known expansions
+    for key, expansions in _LABEL_EXPANSIONS.items():
+        if key in label_low or label_low in key:
+            for exp in expansions:
+                if exp.lower() not in terms:
+                    terms.append(exp.lower())
+    
+    # Also add individual significant words (3+ chars)
+    words = re.findall(r'\b[a-zA-Z]{3,}\b', label)
+    for word in words:
+        word_low = word.lower()
+        if word_low not in terms and word_low not in ('the', 'and', 'for', 'from', 'other'):
+            terms.append(word_low)
+    
+    return terms
 
 
 def _parse_number(s: str) -> Optional[float]:
@@ -268,6 +340,54 @@ def discover_primary_business_lines(
     return llm.json_call(system=system, user=user, max_output_tokens=700)
 
 
+def _classify_table_dimension(c: TableCandidate) -> str:
+    """
+    Pre-classify a table candidate's disclosure dimension based on metadata.
+    
+    Returns: 'product_service', 'segment', 'geography', or 'unknown'
+    """
+    text = " ".join([
+        str(getattr(c, "caption_text", "") or ""),
+        str(getattr(c, "heading_context", "") or ""),
+        " ".join(getattr(c, "row_label_preview", []) or []),
+    ]).lower()
+    
+    # Product/service patterns (most specific first)
+    product_service_patterns = [
+        r"groups?\s+of\s+similar\s+products?\s+(and|&)\s+services?",
+        r"disaggregat(ed|ion)\s+(of\s+)?revenue",
+        r"revenue\s+(from\s+external\s+customers\s+)?by\s+(product|service|category)",
+        r"net\s+sales\s+by\s+(product|category|type)",
+        r"by\s+(product|service)\s+(line|category|type)",
+    ]
+    for pattern in product_service_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return "product_service"
+    
+    # Geography patterns
+    geography_patterns = [
+        r"by\s+geograph",
+        r"geographic\s+(area|region)",
+        r"revenue\s+by\s+region",
+    ]
+    for pattern in geography_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return "geography"
+    
+    # Segment patterns
+    segment_patterns = [
+        r"reportable\s+segment",
+        r"operating\s+segment",
+        r"segment\s+(revenue|result)",
+        r"revenue\s+by\s+segment",
+    ]
+    for pattern in segment_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return "segment"
+    
+    return "unknown"
+
+
 def select_revenue_disaggregation_table(
     llm: OpenAIChatClient,
     *,
@@ -287,15 +407,28 @@ def select_revenue_disaggregation_table(
     (e.g., 'Revenue by Products and Services') over segment-level totals.
     """
     ranked = rank_candidates_for_financial_tables(candidates)[:max_candidates]
-    payload = [_candidate_summary(c) for c in ranked]
+    
+    # Pre-classify each candidate's dimension
+    payload = []
+    for c in ranked:
+        summary = _candidate_summary(c)
+        summary["inferred_dimension"] = _classify_table_dimension(c)
+        payload.append(summary)
+    
+    # Sort to prioritize product_service dimension tables
+    dimension_priority = {"product_service": 0, "segment": 1, "unknown": 2, "geography": 3}
+    payload.sort(key=lambda x: dimension_priority.get(x.get("inferred_dimension", "unknown"), 2))
     
     granular_guidance = ""
     if prefer_granular:
         granular_guidance = (
-            "- STRONGLY PREFER tables titled 'Revenue from External Customers by Products and Services' "
-            "or 'Disaggregation of Revenue' that show individual product/service line items "
-            "(e.g., 'Server products and cloud services', 'LinkedIn', 'Gaming', 'YouTube ads').\n"
-            "- These granular tables are better than segment-level totals.\n"
+            "- **CRITICAL**: When multiple tables exist, PREFER tables with inferred_dimension='product_service' "
+            "over tables with inferred_dimension='segment'. Product/service tables provide the most granular "
+            "revenue breakdown (e.g., 'Online stores', 'Third-party seller services', 'Subscription services').\n"
+            "- Tables titled 'Net sales by groups of similar products and services' or 'Disaggregation of Revenue' "
+            "are BETTER than 'Revenue by Segment' or 'Segment Information' tables.\n"
+            "- For Amazon (AMZN), the product/service table has: Online stores, Physical stores, Third-party seller "
+            "services, Subscription services, Advertising services, AWS, Other.\n"
         )
     
     system = (
@@ -303,10 +436,10 @@ def select_revenue_disaggregation_table(
         "by business lines (segments or product categories) and includes a Total Revenue/Net Sales row.\n"
         "Constraints:\n"
         f"{granular_guidance}"
-        "- Ignore geography-only tables.\n"
+        "- Ignore geography-only tables (inferred_dimension='geography').\n"
         "- Prefer Item 8 / Notes (Note 17 or Note 18 often has the most granular breakdown).\n"
         "- Prefer tables whose year columns are recent fiscal years (>= 2018).\n"
-        "- Prefer tables where row/column labels overlap the provided business lines or known products.\n"
+        "- Each candidate includes 'inferred_dimension' field indicating detected dimension type.\n"
         "Output STRICT JSON ONLY."
     )
     user = json.dumps(
@@ -321,6 +454,7 @@ def select_revenue_disaggregation_table(
             "output_schema": {
                 "table_id": "tXXXX",
                 "confidence": "0..1",
+                "selected_dimension": "product_service|segment|other",
                 "rationale": "short string",
             },
         },
@@ -729,6 +863,8 @@ def summarize_segment_descriptions(
     segment_names: List[str],
     revenue_items: Optional[List[str]] = None,
     max_chars_per_segment: int = 6000,
+    dimension: str = "segment",
+    table_context: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """Produce CSV2-style rows via LLM from extracted filing text snippets.
     
@@ -736,115 +872,146 @@ def summarize_segment_descriptions(
     1. Find segment descriptions in Notes sections with better boundary detection
     2. Use revenue_items (from CSV1) as "must include" keywords for grounding
     3. Extract bounded segments (from one segment heading to the next)
+    4. For product_service dimension: use table_context (caption/footnotes) instead of global search
+    
+    Args:
+        dimension: The disclosure dimension ('segment', 'product_service', 'end_market').
+                   "Other" is only skipped for dimension='segment'.
+        table_context: Dict with 'caption', 'heading', 'nearby_text' from accepted table.
+                       Used for product_service dimension instead of global text search.
     """
     snippets: Dict[str, str] = {}
-    t = html_text
-    low = t.lower()
     
-    # Find all segment boundary positions for bounded extraction
-    segment_positions: Dict[str, List[int]] = {}
-    for seg in segment_names:
-        seg_low = seg.lower()
-        positions = []
-        idx = 0
-        while True:
-            found = low.find(seg_low, idx)
-            if found == -1:
+    # For product_service dimension: use table context instead of global text search
+    # This prevents cross-category contamination (e.g., AWS getting advertising terms)
+    if dimension == "product_service" and table_context:
+        # Build combined table context for product/service category definitions
+        table_context_text = " ".join([
+            table_context.get("caption", ""),
+            table_context.get("heading", ""),
+            table_context.get("nearby_text", ""),
+        ])
+        
+        # For product_service categories, use the same snippet for all
+        # (table context contains the category definitions/footnotes)
+        for seg in segment_names:
+            if seg.lower() in ("other", "other revenue", "corporate"):
+                continue
+            snippets[seg] = _clean(table_context_text) if table_context_text.strip() else ""
+        
+        # Skip the global search path
+        filtered_segments = [s for s in segment_names if s.lower() not in ("other", "other revenue", "corporate")]
+        
+    else:
+        # For segment/end_market dimensions: use global search (existing logic)
+        t = html_text
+        low = t.lower()
+        
+        # Find all segment boundary positions for bounded extraction
+        segment_positions: Dict[str, List[int]] = {}
+        for seg in segment_names:
+            seg_low = seg.lower()
+            positions = []
+            idx = 0
+            while True:
+                found = low.find(seg_low, idx)
+                if found == -1:
+                    break
+                positions.append(found)
+                idx = found + 1
+            segment_positions[seg] = positions
+        
+        # Key section markers
+        segment_info_patterns = [
+            "segment information",
+            "reportable segments",
+            "note 18",
+            "note 17",
+            "segment results",
+        ]
+        segment_info_idx = -1
+        for pattern in segment_info_patterns:
+            idx = low.find(pattern)
+            if idx >= 0:
+                segment_info_idx = idx
                 break
-            positions.append(found)
-            idx = found + 1
-        segment_positions[seg] = positions
-    
-    # Key section markers
-    segment_info_patterns = [
-        "segment information",
-        "reportable segments",
-        "note 18",
-        "note 17",
-        "segment results",
-    ]
-    segment_info_idx = -1
-    for pattern in segment_info_patterns:
-        idx = low.find(pattern)
-        if idx >= 0:
-            segment_info_idx = idx
-            break
-    
-    # Notes section
-    notes_idx = low.find("notes to consolidated financial statements")
-    if notes_idx == -1:
-        notes_idx = low.find("notes to financial statements")
-    
-    # Item 1 Business section
-    item1_idx = low.find("item 1")
-    item1_business_idx = low.find("item 1.", item1_idx) if item1_idx >= 0 else -1
-    
-    for seg in segment_names:
-        # Skip "Other" segment - it's a residual, not a reportable segment
-        if seg.lower() in ("other", "other revenue", "corporate"):
-            continue
+        
+        # Notes section
+        notes_idx = low.find("notes to consolidated financial statements")
+        if notes_idx == -1:
+            notes_idx = low.find("notes to financial statements")
+        
+        # Item 1 Business section
+        item1_idx = low.find("item 1")
+        item1_business_idx = low.find("item 1.", item1_idx) if item1_idx >= 0 else -1
+        
+        for seg in segment_names:
+            # Only skip "Other" for segment dimensions (residual catch-all)
+            # Include "Other" for product_service/end_market (explicit revenue line)
+            if dimension == "segment" and seg.lower() in ("other", "other revenue", "corporate"):
+                continue
+                
+            key = seg
+            seg_low = seg.lower()
+            positions = segment_positions.get(seg, [])
             
-        key = seg
-        seg_low = seg.lower()
-        positions = segment_positions.get(seg, [])
+            if not positions:
+                snippets[key] = ""
+                continue
+            
+            # Find the best occurrence using priority:
+            # 1. In segment info section (Note 17/18)
+            # 2. In Notes section after segment_info_idx
+            # 3. In Item 1 Business section
+            # 4. First occurrence
+            
+            best_idx = -1
+            
+            # Priority 1: In segment info section
+            if segment_info_idx >= 0:
+                for pos in positions:
+                    if pos >= segment_info_idx and pos < segment_info_idx + 100000:
+                        best_idx = pos
+                        break
+            
+            # Priority 2: In Notes section
+            if best_idx == -1 and notes_idx >= 0:
+                for pos in positions:
+                    if pos >= notes_idx:
+                        best_idx = pos
+                        break
+            
+            # Priority 3: In Item 1
+            if best_idx == -1 and item1_business_idx >= 0:
+                for pos in positions:
+                    if pos >= item1_business_idx:
+                        best_idx = pos
+                        break
+            
+            # Priority 4: First occurrence
+            if best_idx == -1 and positions:
+                best_idx = positions[0]
+            
+            if best_idx == -1:
+                snippets[key] = ""
+                continue
+            
+            # Find the end boundary (next segment heading or max chars)
+            end_idx = best_idx + max_chars_per_segment
+            other_seg_names = [s for s in segment_names if s.lower() != seg_low and s.lower() not in ("other", "corporate")]
+            for other_seg in other_seg_names:
+                other_pos = low.find(other_seg.lower(), best_idx + len(seg))
+                if other_pos > best_idx and other_pos < end_idx:
+                    # Found next segment - use as boundary but include some padding
+                    end_idx = min(end_idx, other_pos + 200)
+            
+            # Extract bounded snippet
+            start = max(0, best_idx - 200)
+            end = min(len(t), end_idx)
+            snippets[key] = _clean(t[start:end])
         
-        if not positions:
-            snippets[key] = ""
-            continue
-        
-        # Find the best occurrence using priority:
-        # 1. In segment info section (Note 17/18)
-        # 2. In Notes section after segment_info_idx
-        # 3. In Item 1 Business section
-        # 4. First occurrence
-        
-        best_idx = -1
-        
-        # Priority 1: In segment info section
-        if segment_info_idx >= 0:
-            for pos in positions:
-                if pos >= segment_info_idx and pos < segment_info_idx + 100000:
-                    best_idx = pos
-                    break
-        
-        # Priority 2: In Notes section
-        if best_idx == -1 and notes_idx >= 0:
-            for pos in positions:
-                if pos >= notes_idx:
-                    best_idx = pos
-                    break
-        
-        # Priority 3: In Item 1
-        if best_idx == -1 and item1_business_idx >= 0:
-            for pos in positions:
-                if pos >= item1_business_idx:
-                    best_idx = pos
-                    break
-        
-        # Priority 4: First occurrence
-        if best_idx == -1 and positions:
-            best_idx = positions[0]
-        
-        if best_idx == -1:
-            snippets[key] = ""
-            continue
-        
-        # Find the end boundary (next segment heading or max chars)
-        end_idx = best_idx + max_chars_per_segment
-        other_seg_names = [s for s in segment_names if s.lower() != seg_low and s.lower() not in ("other", "corporate")]
-        for other_seg in other_seg_names:
-            other_pos = low.find(other_seg.lower(), best_idx + len(seg))
-            if other_pos > best_idx and other_pos < end_idx:
-                # Found next segment - use as boundary but include some padding
-                end_idx = min(end_idx, other_pos + 200)
-        
-        # Extract bounded snippet
-        start = max(0, best_idx - 200)
-        end = min(len(t), end_idx)
-        snippets[key] = _clean(t[start:end])
-
-    # Filter out "Other" segments
-    filtered_segments = [s for s in segment_names if s.lower() not in ("other", "other revenue", "corporate")]
+        # Filter out "Other" segments for the else path
+        filtered_segments = [s for s in segment_names if s.lower() not in ("other", "other revenue", "corporate")]
     
     system = (
         "You summarize company business segments from SEC 10-K text. "
@@ -889,7 +1056,15 @@ def summarize_segment_descriptions(
         },
         ensure_ascii=False,
     )
-    return llm.json_call(system=system, user=user, max_output_tokens=2000)
+    result = llm.json_call(system=system, user=user, max_output_tokens=2000)
+    
+    # Enrich LLM output rows with original text snippets for downstream validation
+    rows = result.get("rows", [])
+    for row in rows:
+        seg_name = row.get("segment", "")
+        row["text_snippet"] = snippets.get(seg_name, "")
+    
+    return result
 
 
 def expand_key_items_per_segment(
@@ -900,15 +1075,20 @@ def expand_key_items_per_segment(
     sec_doc_url: str,
     segment_rows: List[Dict[str, Any]],
     html_text: str = "",
+    dimension: str = "segment",
 ) -> Dict[str, Any]:
     """Produce CSV3 rows: key items per segment with short + long description.
     
     EVIDENCE-BASED EXTRACTION:
     - Only extract items that appear verbatim in the provided text
     - Each item must include an evidence_span copied from the source
-    - Post-validate that evidence_span exists in html_text
+    - Post-validate that evidence_span exists in SEGMENT-SPECIFIC snippet (not full HTML)
     
-    Process each segment individually to prevent token truncation.
+    Process each segment individually to prevent token truncation and cross-segment leakage.
+    
+    Args:
+        dimension: The disclosure dimension ('segment', 'product_service', 'end_market').
+                   "Other" is only skipped for dimension='segment'.
     """
     all_rows: List[Dict[str, Any]] = []
     seen_items: set = set()  # For de-duplication
@@ -917,38 +1097,53 @@ def expand_key_items_per_segment(
     for seg_row in segment_rows:
         segment_name = seg_row.get("segment", "Unknown")
         
-        # Skip "Other" segments - they are residuals, not reportable segments
-        if segment_name.lower() in ("other", "other revenue", "corporate"):
+        # Only skip "Other" for segment dimensions (residual catch-all)
+        # Include "Other" for product_service/end_market (explicit revenue line)
+        if dimension == "segment" and segment_name.lower() in ("other", "other revenue", "corporate"):
             continue
         
         segment_description = seg_row.get("segment_description", "")
         key_products = seg_row.get("key_products_services", [])
         
+        # Use segment-specific snippet for evidence validation (prevents cross-segment leakage)
+        segment_snippet = seg_row.get("text_snippet", "")
+        segment_snippet_lower = segment_snippet.lower() if segment_snippet else ""
+        
         system = (
-            "You EXTRACT (not invent) product/service items from 10-K segment descriptions. "
-            "CRITICAL RULES:\n"
-            "1. Only output items that are EXPLICITLY MENTIONED in the provided text.\n"
-            "2. Each item MUST include an 'evidence_span' - a VERBATIM quote (10-30 words) from the text that mentions this item.\n"
-            "3. Do NOT invent, infer, or add items not in the text.\n"
-            "4. Use the EXACT product/brand names as they appear in the text.\n"
-            "5. If fewer than 5 items are explicitly mentioned, output fewer items.\n"
+            "You are an EXTRACTIVE information retrieval system. You ONLY output items that are "
+            "EXPLICITLY NAMED as products, services, or brands in the provided text.\n\n"
+            "STRICT RULES - VIOLATIONS WILL BE REJECTED:\n"
+            "1. ONLY output items whose EXACT NAME appears VERBATIM in the text.\n"
+            "2. 'evidence_span' MUST be a WORD-FOR-WORD quote from the text (15-40 words) that includes the item name.\n"
+            "3. Do NOT infer, generalize, or add items based on your knowledge. If it's not in the text, don't output it.\n"
+            "4. Do NOT output generic categories (e.g., 'cloud services', 'advertising') unless that EXACT phrase names a distinct product.\n"
+            "5. If only 1-3 items are explicitly named, output only those 1-3 items. Empty output is valid.\n"
+            "6. Descriptions must summarize ONLY what the text says, not general knowledge.\n\n"
             "Output STRICT JSON ONLY."
         )
+        # Use text_snippet as primary source (raw filing text), not segment_description (LLM output)
         user = json.dumps(
             {
                 "ticker": ticker,
                 "company_name": company_name,
                 "segment": segment_name,
-                "segment_description": segment_description,
-                "key_products_from_filing": key_products,
+                "source_text": segment_snippet if segment_snippet else segment_description,
+                "key_products_hint": key_products,
+                "instructions": (
+                    "EXTRACT items from 'source_text' ONLY. "
+                    "For each item, the evidence_span must be copy-pasted VERBATIM from source_text "
+                    "and must contain the item name. "
+                    "If you cannot find verbatim evidence for an item in source_text, DO NOT include it. "
+                    "key_products_hint is for reference only - do not include items not in source_text."
+                ),
                 "output_schema": {
                     "rows": [
                         {
-                            "segment": "string (must match input segment name)",
-                            "business_item": "string (exact product/brand name from text)",
-                            "business_item_short_description": "string (1 sentence)",
-                            "business_item_long_description": "string (2-3 sentences)",
-                            "evidence_span": "string (verbatim quote from text, 10-30 words)",
+                            "segment": "string (must match input segment name exactly)",
+                            "business_item": "string (EXACT product/brand name as it appears in source_text)",
+                            "business_item_short_description": "string (1 sentence from source_text)",
+                            "business_item_long_description": "string (2-3 sentences from source_text)",
+                            "evidence_span": "string (VERBATIM quote from source_text, 15-40 words, containing the item name)",
                         }
                     ]
                 },
@@ -969,39 +1164,237 @@ def expand_key_items_per_segment(
                 if item_key in seen_items:
                     continue
                 
-                # Evidence validation: check if evidence_span exists in html_text
+                # SEGMENT-SCOPED Evidence validation (prevents cross-segment leakage)
+                # Validate against segment snippet first, fall back to full HTML if no snippet
+                validation_text = segment_snippet_lower if segment_snippet_lower else html_text_lower
+                
                 evidence_found = False
-                if evidence and html_text_lower:
+                item_in_text = item_name.lower() in validation_text if item_name else False
+                item_in_evidence = item_name.lower() in evidence.lower() if (item_name and evidence) else False
+                
+                if evidence and validation_text:
                     # Normalize for matching (remove extra spaces, lowercase)
                     evidence_normalized = " ".join(evidence.lower().split())
-                    # Try exact match first
-                    if evidence_normalized in html_text_lower:
+                    
+                    # Check if evidence span exists in segment snippet
+                    if evidence_normalized in validation_text:
                         evidence_found = True
                     else:
-                        # Try fuzzy: check if key words from evidence appear together
+                        # Stricter fuzzy match: 85% of significant words must appear
                         evidence_words = [w for w in evidence_normalized.split() if len(w) > 3]
-                        if len(evidence_words) >= 3:
-                            # Check if at least 70% of significant words appear
-                            matches = sum(1 for w in evidence_words if w in html_text_lower)
-                            if matches / len(evidence_words) >= 0.7:
+                        if len(evidence_words) >= 4:
+                            matches = sum(1 for w in evidence_words if w in validation_text)
+                            if matches / len(evidence_words) >= 0.85:
                                 evidence_found = True
                 
-                # Also check if the item name itself appears in the text
-                item_in_text = item_name.lower() in html_text_lower if item_name else False
+                # Strict acceptance criteria:
+                # 1. Item name must appear in segment snippet, AND
+                # 2. Either evidence is validated OR evidence contains the item name
+                accept_item = item_in_text and (evidence_found or item_in_evidence)
                 
-                # Accept if either evidence is found OR item name is in text
-                if evidence_found or item_in_text or not html_text:
+                if accept_item or not validation_text:
                     row["evidence_validated"] = evidence_found
                     row["item_in_source"] = item_in_text
+                    row["item_in_evidence"] = item_in_evidence
                     seen_items.add(item_key)
                     all_rows.append(row)
                 else:
-                    # Reject hallucinated items
-                    print(f"[{ticker}] Rejected item '{item_name}' - not found in source text", flush=True)
+                    # Reject items that fail segment-scoped validation
+                    reject_reason = []
+                    if not item_in_text:
+                        reject_reason.append("item_not_in_segment_text")
+                    if not evidence_found:
+                        reject_reason.append("evidence_not_in_segment")
+                    if not item_in_evidence:
+                        reject_reason.append("item_not_in_evidence")
+                    print(f"[{ticker}] Rejected item '{item_name}' for segment '{segment_name}' - {', '.join(reject_reason)}", flush=True)
                     
         except Exception as e:
             print(f"[{ticker}] Warning: expand_key_items failed for segment '{segment_name}': {e}", flush=True)
             continue
     
     return {"rows": all_rows}
+
+
+def describe_revenue_lines(
+    llm: OpenAIChatClient,
+    *,
+    ticker: str,
+    company_name: str,
+    fiscal_year: int,
+    revenue_lines: List[Dict[str, Any]],
+    table_context: Dict[str, str],
+    html_text: str,
+    max_chars_per_line: int = 5000,
+) -> Dict[str, Any]:
+    """
+    Generate company-language descriptions for each revenue line.
+    
+    Enhanced with section-aware priority search:
+    1. Item 1 Business (primary source for product/service descriptions)
+    2. MD&A (Item 7) - management discussion
+    3. Notes to Financial Statements (Item 8)
+    4. Full text fallback
+    
+    Args:
+        revenue_lines: List of dicts with 'item' (revenue line label) and 'value'
+        table_context: Dict with 'caption', 'heading', 'nearby_text' from accepted table
+        html_text: Full filing text for evidence retrieval
+        
+    Returns:
+        Dict with 'rows' containing line descriptions
+    """
+    if not revenue_lines:
+        return {"rows": []}
+    
+    # Build combined table context
+    table_context_text = " ".join([
+        table_context.get("caption", ""),
+        table_context.get("heading", ""),
+        table_context.get("nearby_text", ""),
+    ])
+    
+    # Pre-extract major sections for priority search
+    item1_section = _extract_section(html_text, _ITEM1_RE, max_chars=80000)
+    item7_section = _extract_section(html_text, _ITEM7_RE, max_chars=80000)
+    item8_section = _extract_section(html_text, _ITEM8_RE, max_chars=80000)
+    
+    # Priority order: Item 1 → MD&A → Notes → Full text
+    sections_priority = [
+        ("item1", item1_section),
+        ("item7", item7_section),
+        ("item8", item8_section),
+        ("full", html_text),
+    ]
+    
+    evidence_by_line: Dict[str, str] = {}
+    
+    for line_info in revenue_lines:
+        item_label = line_info.get("item", "")
+        if not item_label:
+            continue
+        
+        # Expand search terms for this label
+        search_terms = _expand_search_terms(item_label)
+        
+        snippets = []
+        
+        # 1. Always include table context first (footnotes often have descriptions)
+        if table_context_text:
+            snippets.append(f"[TABLE CONTEXT] {table_context_text[:2000]}")
+        
+        # 2. Search through sections in priority order
+        for section_name, section_text in sections_priority:
+            if not section_text:
+                continue
+            
+            section_low = section_text.lower()
+            
+            # Try each search term
+            for term in search_terms:
+                idx = section_low.find(term)
+                if idx != -1:
+                    # Found a match - extract larger window
+                    start = max(0, idx - 800)
+                    end = min(len(section_text), idx + 2500)
+                    window = section_text[start:end]
+                    snippet = f"[{section_name.upper()}] {_clean(window)}"
+                    
+                    # Avoid duplicates
+                    if snippet not in snippets:
+                        snippets.append(snippet)
+                    
+                    # Found in this section, try to get more context
+                    # Look for additional matches in this section
+                    next_idx = section_low.find(term, idx + len(term) + 500)
+                    if next_idx != -1 and len(snippets) < 5:
+                        start2 = max(0, next_idx - 500)
+                        end2 = min(len(section_text), next_idx + 2000)
+                        window2 = section_text[start2:end2]
+                        snippet2 = f"[{section_name.upper()}] {_clean(window2)}"
+                        if snippet2 not in snippets:
+                            snippets.append(snippet2)
+                    
+                    break  # Found in this section, move to next section
+            
+            # Stop if we have enough snippets
+            if len(snippets) >= 4:
+                break
+        
+        # Combine snippets for this line
+        combined = " [...] ".join(snippets)[:max_chars_per_line]
+        evidence_by_line[item_label] = combined
+    
+    # Build LLM prompt
+    system = (
+        "You are extracting product/service descriptions from SEC 10-K filings.\n\n"
+        "CRITICAL RULES:\n"
+        "1. Use ONLY company language from the provided evidence text.\n"
+        "2. Each description should be 1-2 sentences explaining what the revenue line includes.\n"
+        "3. Quote or closely paraphrase the company's own words.\n"
+        "4. Focus on the [ITEM1] and [ITEM7] sections which contain business descriptions.\n"
+        "5. If no description is found in the evidence, return an empty string.\n"
+        "6. Do NOT invent or infer descriptions not present in the text.\n\n"
+        "Output STRICT JSON ONLY."
+    )
+    
+    lines_data = []
+    for line_info in revenue_lines:
+        item = line_info.get("item", "")
+        lines_data.append({
+            "revenue_line": item,
+            "evidence_text": evidence_by_line.get(item, "")[:4000],
+        })
+    
+    user = json.dumps(
+        {
+            "ticker": ticker,
+            "company_name": company_name,
+            "fiscal_year": fiscal_year,
+            "revenue_lines": lines_data,
+            "instructions": (
+                "For each revenue_line, extract a description from evidence_text using company language. "
+                "Priority sources: [ITEM1] for business descriptions, [ITEM7] for MD&A context, [TABLE CONTEXT] for footnotes. "
+                "Focus on what products/services are included in this revenue category. "
+                "If the evidence doesn't describe this line, return empty string."
+            ),
+            "output_schema": {
+                "rows": [
+                    {
+                        "revenue_line": "string (exact match from input)",
+                        "description": "string (1-2 sentences in company language, or empty)",
+                    }
+                ]
+            },
+        },
+        ensure_ascii=False,
+    )
+    
+    try:
+        result = llm.json_call(system=system, user=user, max_output_tokens=2500)
+        rows = result.get("rows", [])
+        
+        # Create lookup dict for descriptions
+        descriptions = {}
+        for row in rows:
+            line = row.get("revenue_line", "")
+            desc = row.get("description", "")
+            if line:
+                descriptions[line] = desc
+        
+        # Match back to input lines
+        output_rows = []
+        for line_info in revenue_lines:
+            item = line_info.get("item", "")
+            output_rows.append({
+                "revenue_line": item,
+                "description": descriptions.get(item, ""),
+            })
+        
+        return {"rows": output_rows}
+        
+    except Exception as e:
+        print(f"[{ticker}] Warning: describe_revenue_lines failed: {e}", flush=True)
+        # Return empty descriptions on failure
+        return {"rows": [{"revenue_line": l.get("item", ""), "description": ""} for l in revenue_lines]}
 

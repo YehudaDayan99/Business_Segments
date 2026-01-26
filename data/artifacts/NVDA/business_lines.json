@@ -1,12 +1,6 @@
 {
   "dimension": "reportable_segments",
-  "segments": [
-    "Gaming",
-    "Data Center",
-    "Professional Visualization",
-    "Automotive",
-    "OEM and Other"
-  ],
+  "segments": [],
   "include_segments_optional": [],
-  "notes": "NVIDIA's primary business lines are typically reported as segments including Gaming, Data Center, Professional Visualization, Automotive, and OEM and Other."
+  "notes": "The provided snippets do not contain sufficient information to identify NVIDIA's primary business-line dimension or list of reportable segments or product categories. Typically, NVIDIA reports by 'Graphics' and 'Compute & Networking' segments, but this is not confirmed in the provided text."
 }

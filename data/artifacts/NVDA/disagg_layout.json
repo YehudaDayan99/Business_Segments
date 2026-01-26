@@ -1,18 +1,18 @@
 {
-  "segment_col": 0,
+  "segment_col": null,
   "item_col": 0,
   "year_cols": {
     "2025": 4,
-    "2024": 9,
-    "2023": 15
+    "2024": 10,
+    "2023": 16
   },
   "header_rows": [
     1,
     2,
     4
   ],
-  "total_row_regex": "^Total revenue$",
+  "total_row_regex": "(?i)^Total revenue$",
   "exclude_row_regex": "",
   "units_multiplier": 1000000,
-  "notes": "Segment and Item columns are the same (column 0) with business lines; year columns correspond to recent fiscal years 2025, 2024, 2023 as indicated by 'Year Ended' headers and dates; units are in millions."
+  "notes": "No separate segment column; first column is product/item; year columns correspond to recent fiscal years 2025, 2024, 2023; total row labeled 'Total revenue'; units in millions."
 }

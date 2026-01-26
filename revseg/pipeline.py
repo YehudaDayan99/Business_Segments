@@ -42,7 +42,9 @@ from revseg.react_agents import (
     infer_disaggregation_layout,
     summarize_segment_descriptions,
     expand_key_items_per_segment,
+    describe_revenue_lines,
 )
+from revseg.mappings import get_segment_for_item, is_subtotal_row, is_total_row, is_adjustment_item
 from revseg.sec_edgar import SEC_ARCHIVES_BASE, download_latest_10k
 from revseg.table_candidates import (
     TableCandidate,
@@ -57,6 +59,7 @@ from revseg.extraction import (
     extract_revenue_unified,
     extract_with_layout_fallback,
     validate_extraction,
+    detect_dimension,
     ExtractionResult,
     ValidationResult,
 )
@@ -99,6 +102,54 @@ def _ensure_filing_dir(ticker: str, *, base_dir: Path, cache_dir: Optional[Path]
             include_amendments=False,
             min_interval_s=0.2,
         )
+
+
+import re
+
+# Dimension priority for CSV1 (prefer product/service granularity over segment totals)
+_DIMENSION_PRIORITY = ["product_service", "revenue_source", "end_market", "segment"]
+
+
+def _clean_revenue_line(label: str) -> str:
+    """Remove footnote markers like (1), (4) from revenue line labels."""
+    return re.sub(r'\s*\(\d+\)\s*$', '', label).strip()
+
+
+def _select_primary_dimension(rows: list) -> str:
+    """
+    Select the best dimension for CSV1 output to avoid duplication.
+    Prefers product/service granularity over segment totals.
+    """
+    dimensions = set(r.dimension for r in rows if hasattr(r, 'dimension'))
+    for dim in _DIMENSION_PRIORITY:
+        if dim in dimensions:
+            return dim
+    return "segment"  # fallback
+
+
+def _get_revenue_group(ticker: str, item: str, dimension: str, row_segment: str = "") -> str:
+    """
+    Determine Revenue Group for CSV1.
+    Uses mappings.py for segment attribution, else:
+    - For segment dimension: use segment name directly
+    - For other dimensions: use "Product/Service disclosure"
+    """
+    # Check for explicit segment mapping
+    segment = get_segment_for_item(ticker, item)
+    if segment:
+        return segment
+    
+    # If this is a segment-level row, use the segment name as Revenue Group
+    if dimension == "segment" and row_segment:
+        return row_segment
+    
+    # No mapping found - use "Product/Service disclosure"
+    return "Product/Service disclosure"
+
+
+def _to_millions(value_usd: int) -> float:
+    """Convert base units (USD) to millions."""
+    return round(value_usd / 1_000_000, 2)
 
 
 def _html_text_for_llm(html_path: Path, *, max_chars: int = 250_000) -> str:
@@ -357,11 +408,17 @@ def run_pipeline(
     out_dir: Path | str = Path("data/outputs"),
     filings_base_dir: Path | str = Path("data/10k"),
     cache_dir: Path | str = Path(".cache/sec"),
-    model: str = "gpt-4.1-mini",
+    model_fast: str = "gpt-4.1-mini",
+    model_quality: str = "gpt-4.1",
     max_react_iters: int = 3,
     validation_tolerance_pct: float = 0.02,
 ) -> Dict[str, Any]:
-    """End-to-end run for multiple tickers (latest 10-K per ticker)."""
+    """End-to-end run for multiple tickers (latest 10-K per ticker).
+    
+    Uses tiered model approach:
+    - model_fast (gpt-4.1-mini): high-volume tasks (table selection, layout inference)
+    - model_quality (gpt-4.1): quality-critical tasks (descriptions, segment discovery)
+    """
     # Clear caches at start of run to ensure fresh state
     _clear_caches()
     
@@ -370,8 +427,12 @@ def run_pipeline(
     filings_base_dir = Path(filings_base_dir).expanduser().resolve()
     cache_dir = Path(cache_dir).expanduser().resolve()
 
-    # Use higher rate limit for efficiency (modern OpenAI accounts support 500+ RPM)
-    llm = OpenAIChatClient(model=model, rate_limit_rpm=60.0)
+    # Tiered model approach: fast for volume, quality for descriptions
+    llm_fast = OpenAIChatClient(model=model_fast, rate_limit_rpm=60.0)
+    llm_quality = OpenAIChatClient(model=model_quality, rate_limit_rpm=30.0)
+    
+    # Default llm for backward compatibility
+    llm = llm_fast
 
     artifacts_dir = out_dir.parent / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -434,8 +495,9 @@ def run_pipeline(
             _trace_append(t_art, {"stage": "scout", "n_headings": len(scout.get("headings", [])), "n_snippets": len(snippets)})
 
             # Business line discovery (CACHED - single LLM call per filing)
+            # Use quality model for better segment identification
             discovery = _cached_discover_business_lines(
-                llm, ticker=ticker, company_name=company_name, snippets=snippets, html_path=html_path
+                llm_quality, ticker=ticker, company_name=company_name, snippets=snippets, html_path=html_path
             )
             (t_art / "business_lines.json").write_text(json.dumps(discovery, indent=2, ensure_ascii=False), encoding="utf-8")
             _trace_append(t_art, {"stage": "discover", "discovery": discovery})
@@ -509,8 +571,61 @@ def run_pipeline(
                 return sum(1 for h in hints if h and h in blob)
 
             ranked_by_hints = sorted(candidates_for_select, key=_hint_score, reverse=True)
-            candidate_table_ids = [preferred_table_id] + [
-                c.table_id for c in ranked_by_hints[:15] if c.table_id != preferred_table_id
+            
+            # Also find tables that are clearly "revenue by X" tables (high-confidence revenue tables)
+            def _is_revenue_breakdown_table(c: TableCandidate) -> tuple:
+                """
+                Identify tables that show revenue breakdown by product/segment/end market.
+                Returns (is_match, is_geography) tuple for prioritization.
+                """
+                row_labels = getattr(c, "row_label_preview", []) or []
+                row_labels_lower = [r.lower() for r in row_labels]
+                row_text = " ".join(row_labels_lower)
+                
+                # Check for geography (lower priority)
+                geography_patterns = ["geographic", "geography", "united states", "singapore", "taiwan", "china", "europe"]
+                is_geography = any(p in row_text for p in geography_patterns)
+                
+                # Positive: table heading/title indicates revenue breakdown
+                positive_patterns = [
+                    "revenue by",
+                    "net sales by",
+                    "revenue from",
+                    "disaggregation of revenue",
+                ]
+                has_positive = any(p in row_text for p in positive_patterns)
+                
+                # Also check for "Total revenue" row (indicates revenue aggregation table)
+                has_total_revenue = "total revenue" in row_text or "total net sales" in row_text
+                
+                # Negative: income statement or expense table
+                negative_patterns = [
+                    "net income", "operating expense", "gross margin", "gross profit",
+                    "operating income", "cost of revenue", "research and development",
+                    "deferred revenue", "liability", "payable", "accrued"
+                ]
+                has_negative = any(p in row_text for p in negative_patterns)
+                
+                is_match = (has_positive or has_total_revenue) and not has_negative
+                return (is_match, is_geography)
+            
+            # Get all revenue tables, prioritize non-geography over geography
+            revenue_tables_with_priority = [
+                (c.table_id, _is_revenue_breakdown_table(c))
+                for c in candidates_for_select
+            ]
+            # Filter to matches, sort by: non-geography first, then by table_id
+            revenue_caption_tables = [
+                tid for tid, (is_match, is_geo) in sorted(
+                    [(tid, match) for tid, match in revenue_tables_with_priority if match[0]],
+                    key=lambda x: (x[1][1], x[0])  # (is_geography, table_id)
+                )
+                if tid != preferred_table_id
+            ]
+            
+            candidate_table_ids = [preferred_table_id] + revenue_caption_tables + [
+                c.table_id for c in ranked_by_hints[:15] 
+                if c.table_id != preferred_table_id and c.table_id not in revenue_caption_tables
             ]
 
             year = None
@@ -519,6 +634,7 @@ def run_pipeline(
             validation: Optional[ValidationResult] = None
             table_id = ""
             extraction_result: Optional[ExtractionResult] = None
+            accepted_table_context: Dict[str, str] = {}
 
             for attempt_id in candidate_table_ids:
                 print(f"[{ticker}] try table {attempt_id} ...", flush=True)
@@ -527,6 +643,19 @@ def run_pipeline(
                     continue
                 try:
                     grid = extract_table_grid_normalized(html_path, attempt_id)
+                    
+                    # Get table metadata for dimension detection
+                    table_caption = str(getattr(cand, "caption_text", "") or "")
+                    table_heading = str(getattr(cand, "heading_context", "") or "")
+                    row_labels = [r[0] if r else "" for r in (cand.preview or [])]
+                    
+                    # Detect disclosure dimension (product_service, end_market, segment, etc.)
+                    dimension = detect_dimension(
+                        caption=table_caption,
+                        heading=table_heading,
+                        row_labels=row_labels,
+                        ticker=ticker,
+                    )
                     
                     # Get LLM layout hints
                     layout = infer_disaggregation_layout(
@@ -547,6 +676,9 @@ def run_pipeline(
                         llm_layout=layout,
                         ticker=ticker,
                         prefer_granular=True,
+                        dimension=dimension,
+                        caption=table_caption,
+                        heading=table_heading,
                     )
                     
                     if result is None or not result.segment_revenues:
@@ -585,17 +717,25 @@ def run_pipeline(
                     validation = attempt_validation
                     extraction_result = result
                     
+                    # Save table context for CSV2/CSV3 (needed for product_service dimension)
+                    accepted_table_context = {
+                        "caption": str(getattr(cand, "caption_text", "") or ""),
+                        "heading": str(getattr(cand, "heading_context", "") or ""),
+                        "nearby_text": str(getattr(cand, "nearby_text_context", "") or ""),
+                    }
+                    
                     # Write extraction artifacts
                     (t_art / "disagg_layout.json").write_text(json.dumps(layout, indent=2, ensure_ascii=False), encoding="utf-8")
                     extraction_dict = {
                         "year": result.year,
-                        "rows": [{"segment": r.segment, "item": r.item, "value": r.value, "row_type": r.row_type} for r in result.rows],
+                        "dimension": result.dimension,
+                        "rows": [{"segment": r.segment, "item": r.item, "value": r.value, "row_type": r.row_type, "dimension": r.dimension} for r in result.rows],
                         "table_total": result.table_total,
                         "segment_revenues": result.segment_revenues,
                         "adjustment_revenues": result.adjustment_revenues,
                     }
                     (t_art / "disagg_extracted.json").write_text(json.dumps(extraction_dict, indent=2, ensure_ascii=False), encoding="utf-8")
-                    print(f"[{ticker}] accepted table {table_id} year={year} segments={len(seg_totals)}", flush=True)
+                    print(f"[{ticker}] accepted table {table_id} year={year} dim={result.dimension} segments={len(seg_totals)}", flush=True)
                     break
                     
                 except Exception as e:
@@ -619,66 +759,108 @@ def run_pipeline(
             (t_art / "csv1_validation.json").write_text(json.dumps(validation_dict, indent=2), encoding="utf-8")
             _trace_append(t_art, {"stage": "csv1_validate", "validation": validation_dict, "table_id": table_id})
 
-            # Write CSV1 rows - products/services only (no adjustments)
-            # Per objective: "revenue line items that represent products and/or services"
-            # Adjustments (hedging, corporate) are used for validation but excluded from output
+            # =================================================================
+            # CSV1: New schema per csv1_segment_revenue_repo_aligned.md
+            # =================================================================
+            # Columns: Company Name, Ticker, Revenue Group, Revenue Line,
+            #          Line Item description, Revenue (FY{year}, $m)
             
-            # Calculate total for percentage (products only, excluding adjustments)
-            product_sum = sum(
-                r.value for r in (extraction_result.rows if extraction_result else [])
-                if r.row_type != "adjustment"
-            ) or sum(seg_totals.values())
-            total_for_pct = product_sum
-            
-            # Use extraction_result.rows for granular line items
             if extraction_result and extraction_result.rows:
-                # Filter: only products/services, no adjustments, no "Other" residuals
-                product_rows = [
+                # Step 1: Filter rows (no adjustments, no totals/subtotals)
+                eligible_rows = [
                     r for r in extraction_result.rows
-                    if r.row_type != "adjustment" 
-                    and r.segment.lower() not in ("other", "corporate")
+                    if r.row_type not in ("adjustment", "total")
+                    and not is_total_row(r.item)
+                    and not is_subtotal_row(r.item, ticker)
+                    and r.value > 0
                 ]
                 
-                # Sort rows: by segment, then by value descending
-                sorted_rows = sorted(
-                    product_rows,
-                    key=lambda r: (r.segment or "ZZZ", -r.value),
+                # Step 2: Smart dimension selection to avoid duplication
+                # Prefer granular items (revenue_source/product_service) but keep 
+                # segment-level rows for segments that have no granular breakdown.
+                #
+                # Example (META): 
+                #   - Family of Apps has granular breakdown (Advertising, Other revenue)
+                #     → keep granular items, skip segment total
+                #   - Reality Labs has NO granular breakdown
+                #     → keep segment-level row
+                
+                # Group rows by segment
+                granular_dims = {"revenue_source", "product_service", "end_market"}
+                segments_with_granular = set()
+                for r in eligible_rows:
+                    if r.dimension in granular_dims and r.segment:
+                        segments_with_granular.add(r.segment.lower().strip())
+                        # Also check for variations (e.g., "Family of Apps (FoA)" vs "Family of Apps")
+                        base_seg = r.segment.split("(")[0].strip().lower()
+                        segments_with_granular.add(base_seg)
+                
+                # Filter: keep granular rows, or segment rows if segment has no granular breakdown
+                filtered_rows = []
+                for r in eligible_rows:
+                    if r.dimension in granular_dims:
+                        # Keep granular items
+                        filtered_rows.append(r)
+                    elif r.dimension == "segment":
+                        # Keep segment row only if there's no granular breakdown for this segment
+                        seg_lower = r.segment.lower().strip() if r.segment else ""
+                        base_seg = seg_lower.split("(")[0].strip()
+                        if seg_lower not in segments_with_granular and base_seg not in segments_with_granular:
+                            filtered_rows.append(r)
+                
+                # Step 3: Build revenue lines list for description extraction
+                revenue_lines_for_desc = [
+                    {"item": r.item, "value": r.value}
+                    for r in filtered_rows
+                ]
+                
+                # Step 4: Get line item descriptions (LLM)
+                # Use quality model for better company-language descriptions
+                print(f"[{ticker}] extracting line item descriptions (LLM quality)...", flush=True)
+                html_text = _html_text_for_llm(html_path)
+                desc_result = describe_revenue_lines(
+                    llm_quality,
+                    ticker=ticker,
+                    company_name=company_name,
+                    fiscal_year=year,
+                    revenue_lines=revenue_lines_for_desc,
+                    table_context=accepted_table_context,
+                    html_text=html_text,
                 )
-                for r in sorted_rows:
-                    pct = (r.value / total_for_pct * 100.0) if total_for_pct else 0.0
+                
+                # Create description lookup
+                descriptions_by_line = {}
+                for row in desc_result.get("rows", []):
+                    line = row.get("revenue_line", "")
+                    desc = row.get("description", "")
+                    if line:
+                        descriptions_by_line[line] = desc
+                
+                # Save descriptions artifact
+                (t_art / "csv1_line_descriptions.json").write_text(
+                    json.dumps(desc_result, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                
+                # Step 5: Build CSV1 rows with new schema
+                for r in sorted(filtered_rows, key=lambda x: (-x.value, x.item)):
+                    # Clean footnote markers from label
+                    clean_label = _clean_revenue_line(r.item)
+                    
+                    # Determine Revenue Group using mappings
+                    revenue_group = _get_revenue_group(ticker, clean_label, r.dimension, r.segment)
+                    
+                    # Get description
+                    description = descriptions_by_line.get(r.item, "")
+                    
                     csv1_rows.append(
                         {
-                            "Year": year,
-                            "Company": company_name,
+                            "Company Name": company_name,
                             "Ticker": ticker,
-                            "Segment": r.segment,
-                            "Item": r.item,
-                            "Income $": r.value,
-                            "Income %": round(pct, 4),
-                            "Row type": r.row_type,
-                            "Primary source": f"10-K revenue table ({table_id})",
-                            "Link": sec_doc_url,
-                        }
-                    )
-            else:
-                # Fallback to segment totals if no granular rows
-                for seg, rev in sorted(seg_totals.items(), key=lambda kv: kv[1], reverse=True):
-                    # Skip "Other" residual
-                    if seg.lower() in ("other", "corporate"):
-                        continue
-                    pct = (rev / total_for_pct * 100.0) if total_for_pct else 0.0
-                    csv1_rows.append(
-                        {
-                            "Year": year,
-                            "Company": company_name,
-                            "Ticker": ticker,
-                            "Segment": seg,
-                            "Item": seg,  # Item same as segment when no granular data
-                            "Income $": rev,
-                            "Income %": round(pct, 4),
-                            "Row type": "segment",
-                            "Primary source": f"10-K revenue table ({table_id})",
-                            "Link": sec_doc_url,
+                            "Fiscal Year": year,
+                            "Revenue Group (Reportable Segment)": revenue_group,
+                            "Revenue Line": clean_label,
+                            "Line Item description (company language)": description,
+                            "Revenue ($m)": _to_millions(r.value),
                         }
                     )
 
@@ -694,15 +876,21 @@ def run_pipeline(
                     if r.row_type != "adjustment" and r.item
                 ]
             
-            print(f"[{ticker}] summarizing segment descriptions (LLM)...", flush=True)
+            # Get the detected dimension for this extraction
+            detected_dimension = extraction_result.dimension if extraction_result else "segment"
+            
+            # Use quality model for segment descriptions
+            print(f"[{ticker}] summarizing segment descriptions (LLM quality)...", flush=True)
             seg_desc = summarize_segment_descriptions(
-                llm,
+                llm_quality,
                 ticker=ticker,
                 company_name=company_name,
                 sec_doc_url=sec_doc_url,
                 html_text=html_text,
                 segment_names=seg_names,
                 revenue_items=revenue_item_names,
+                dimension=detected_dimension,
+                table_context=accepted_table_context,
             )
             (t_art / "csv2_llm.json").write_text(json.dumps(seg_desc, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -719,14 +907,16 @@ def run_pipeline(
                     }
                 )
 
-            print(f"[{ticker}] expanding key items per segment (LLM)...", flush=True)
+            # Use quality model for item extraction
+            print(f"[{ticker}] expanding key items per segment (LLM quality)...", flush=True)
             csv3_payload = expand_key_items_per_segment(
-                llm,
+                llm_quality,
                 ticker=ticker,
                 company_name=company_name,
                 sec_doc_url=sec_doc_url,
                 segment_rows=(seg_desc.get("rows") or []),
                 html_text=html_text,
+                dimension=detected_dimension,
             )
             (t_art / "csv3_llm.json").write_text(
                 json.dumps(csv3_payload, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -759,7 +949,15 @@ def run_pipeline(
     # Write CSVs
     _write_csv(
         out_dir / "csv1_segment_revenue.csv",
-        ["Year", "Company", "Ticker", "Segment", "Item", "Income $", "Income %", "Row type", "Primary source", "Link"],
+        [
+            "Company Name",
+            "Ticker",
+            "Fiscal Year",
+            "Revenue Group (Reportable Segment)",
+            "Revenue Line",
+            "Line Item description (company language)",
+            "Revenue ($m)",
+        ],
         csv1_rows,
     )
     _write_csv(
@@ -798,13 +996,15 @@ def _parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
 
     p = argparse.ArgumentParser(description="Run ReAct revenue segmentation pipeline for tickers.")
     p.add_argument("--tickers", required=True, help="Comma-separated tickers, e.g. MSFT,AAPL,...")
-    p.add_argument("--model", default="gpt-4.1-mini")
+    p.add_argument("--model-fast", default="gpt-4.1-mini", help="Fast model for table selection/layout")
+    p.add_argument("--model-quality", default="gpt-4.1", help="Quality model for descriptions/discovery")
     p.add_argument("--max-react-iters", type=int, default=3)
     p.add_argument("--out-dir", default="data/outputs")
     args = p.parse_args(argv)
     return {
         "tickers": [t.strip().upper() for t in args.tickers.split(",") if t.strip()],
-        "model": args.model,
+        "model_fast": args.model_fast,
+        "model_quality": args.model_quality,
         "max_react_iters": int(args.max_react_iters),
         "out_dir": Path(args.out_dir),
     }

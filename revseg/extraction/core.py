@@ -12,11 +12,12 @@ from revseg.mappings import get_segment_for_item, is_adjustment_item, is_subtota
 @dataclass
 class ExtractedRow:
     """A single extracted row from a revenue table."""
-    segment: str           # Canonical segment name (or empty for adjustments)
+    segment: str           # Canonical segment/group name (or empty for adjustments)
     item: str              # Original row label
     value: int             # Revenue value in base units (USD)
-    row_type: str          # "segment" | "adjustment" | "total" | "unknown"
+    row_type: str          # "segment" | "adjustment" | "total" | "unknown" | "item"
     year: int
+    dimension: str = "segment"  # "segment" | "product_service" | "end_market" | "revenue_source" | "geography"
 
 
 @dataclass
@@ -25,6 +26,7 @@ class ExtractionResult:
     year: int
     rows: List[ExtractedRow]
     table_total: Optional[int]
+    dimension: str = "segment"  # Primary dimension of this extraction
     segment_revenues: Dict[str, int] = field(default_factory=dict)
     adjustment_revenues: Dict[str, int] = field(default_factory=dict)
 
@@ -59,6 +61,158 @@ SKIP_PATTERNS = [
     re.compile(r"\bunearned\b", re.IGNORECASE),
     re.compile(r"^\s*$"),  # Empty
 ]
+
+# ============================================================================
+# DIMENSION DETECTION - Classify revenue table by disclosure dimension
+# ============================================================================
+
+# Patterns indicating product/service disaggregation (most granular)
+PRODUCT_SERVICE_PATTERNS = [
+    re.compile(r"groups?\s+of\s+similar\s+products?\s+(and|&)\s+services?", re.IGNORECASE),
+    re.compile(r"disaggregat(ed|ion)\s+(of\s+)?revenue", re.IGNORECASE),
+    re.compile(r"revenue\s+by\s+(product|service|category|type)", re.IGNORECASE),
+    re.compile(r"net\s+sales\s+by\s+(product|category)", re.IGNORECASE),
+    re.compile(r"by\s+(product|service)\s+(line|category|type)", re.IGNORECASE),
+]
+
+# Patterns indicating end-market breakdown
+END_MARKET_PATTERNS = [
+    re.compile(r"revenue\s+by\s+end\s*[-\s]?market", re.IGNORECASE),
+    re.compile(r"by\s+end\s*[-\s]?market", re.IGNORECASE),
+    re.compile(r"end\s*[-\s]?market\s+revenue", re.IGNORECASE),
+]
+
+# Patterns indicating geography breakdown
+GEOGRAPHY_PATTERNS = [
+    re.compile(r"revenue\s+by\s+geograph", re.IGNORECASE),
+    re.compile(r"by\s+geograph", re.IGNORECASE),
+    re.compile(r"geographic\s+(area|region)", re.IGNORECASE),
+    re.compile(r"revenue\s+by\s+region", re.IGNORECASE),
+]
+
+# Patterns indicating segment breakdown (ASC 280 reportable segments)
+SEGMENT_PATTERNS = [
+    re.compile(r"reportable\s+segment", re.IGNORECASE),
+    re.compile(r"operating\s+segment", re.IGNORECASE),
+    re.compile(r"segment\s+(revenue|result|information)", re.IGNORECASE),
+    re.compile(r"revenue\s+by\s+segment", re.IGNORECASE),
+]
+
+
+def detect_dimension(
+    caption: str = "",
+    heading: str = "",
+    row_labels: Optional[List[str]] = None,
+    ticker: str = "",
+) -> str:
+    """
+    Detect the disclosure dimension of a revenue table.
+    
+    Returns: 'product_service', 'end_market', 'geography', 'segment', or 'unknown'
+    
+    Priority order (most specific first):
+    1. product_service - most granular, preferred for objective
+    2. end_market - company-specific breakdown (e.g., NVDA)
+    3. geography - regional breakdown
+    4. segment - ASC 280 reportable segments
+    """
+    # Combine text sources for pattern matching
+    text = f"{caption} {heading}".lower()
+    
+    # Check patterns in priority order
+    for pattern in PRODUCT_SERVICE_PATTERNS:
+        if pattern.search(text):
+            return "product_service"
+    
+    for pattern in END_MARKET_PATTERNS:
+        if pattern.search(text):
+            return "end_market"
+    
+    for pattern in GEOGRAPHY_PATTERNS:
+        if pattern.search(text):
+            return "geography"
+    
+    for pattern in SEGMENT_PATTERNS:
+        if pattern.search(text):
+            return "segment"
+    
+    # Ticker-specific overrides based on known filing structures
+    ticker_upper = ticker.upper() if ticker else ""
+    if ticker_upper == "NVDA" and row_labels:
+        # NVDA's "Data Center/Gaming/etc." table is end_market
+        labels_text = " ".join(row_labels).lower()
+        if "data center" in labels_text and "gaming" in labels_text:
+            return "end_market"
+    
+    if ticker_upper == "AAPL" and row_labels:
+        # AAPL's iPhone/Mac/iPad breakdown is product_service
+        labels_text = " ".join(row_labels).lower()
+        if "iphone" in labels_text and "mac" in labels_text:
+            return "product_service"
+    
+    if ticker_upper == "AMZN" and row_labels:
+        # AMZN has two tables - detect which one
+        labels_text = " ".join(row_labels).lower()
+        if "online stores" in labels_text or "third-party" in labels_text:
+            return "product_service"
+        if "north america" in labels_text and "international" in labels_text and "aws" in labels_text:
+            return "segment"
+    
+    # Default to segment if can't determine
+    return "segment"
+
+
+# Patterns for classifying individual row labels as revenue source vs segment
+REVENUE_SOURCE_LABEL_PATTERNS = [
+    re.compile(r"^\s*advertising\s*$", re.IGNORECASE),
+    re.compile(r"^\s*other\s+revenue\s*$", re.IGNORECASE),
+    re.compile(r"^\s*subscription\s*(revenue|services?)?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*licensing\s*(revenue)?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*service\s+fees?\s*$", re.IGNORECASE),
+    re.compile(r"^\s*product\s+sales?\s*$", re.IGNORECASE),
+]
+
+SEGMENT_LABEL_PATTERNS = [
+    re.compile(r"family\s+of\s+apps", re.IGNORECASE),
+    re.compile(r"reality\s+labs", re.IGNORECASE),
+    re.compile(r"intelligent\s+cloud", re.IGNORECASE),
+    re.compile(r"productivity\s+and\s+business", re.IGNORECASE),
+    re.compile(r"personal\s+computing", re.IGNORECASE),
+    re.compile(r"google\s+(services|cloud)", re.IGNORECASE),
+    re.compile(r"other\s+bets", re.IGNORECASE),
+    re.compile(r"north\s+america", re.IGNORECASE),
+    re.compile(r"international", re.IGNORECASE),
+    # NOTE: Removed "aws" pattern - AWS should inherit table dimension (product_service for AMZN)
+]
+
+
+def classify_row_dimension(label: str, table_dimension: str = "segment") -> str:
+    """
+    Classify an individual row label's dimension.
+    
+    For tables with mixed dimensions (like META), this helps assign the correct
+    dimension to each row.
+    
+    Args:
+        label: The row label to classify
+        table_dimension: The overall table dimension (used as default)
+    
+    Returns: 'segment', 'revenue_source', or the table_dimension as fallback
+    """
+    label_clean = label.strip()
+    
+    # Check revenue source patterns
+    for pattern in REVENUE_SOURCE_LABEL_PATTERNS:
+        if pattern.search(label_clean):
+            return "revenue_source"
+    
+    # Check segment patterns
+    for pattern in SEGMENT_LABEL_PATTERNS:
+        if pattern.search(label_clean):
+            return "segment"
+    
+    # Default to table dimension
+    return table_dimension
 
 
 def _is_adjustment_row(label: str) -> bool:
@@ -432,6 +586,9 @@ def extract_line_items_granular(
     ticker: str,
     layout: Dict[str, Any],
     expected_segments: Optional[List[str]] = None,
+    dimension: str = "segment",
+    caption: str = "",
+    heading: str = "",
 ) -> ExtractionResult:
     """
     Extract all line items from a 'Revenue by Products and Services' table.
@@ -447,6 +604,9 @@ def extract_line_items_granular(
         ticker: Company ticker for segment mapping lookup
         layout: Layout dict from LLM with item_col, year_cols, etc.
         expected_segments: Optional list of expected segment names
+        dimension: Disclosure dimension ('segment', 'product_service', 'end_market', etc.)
+        caption: Table caption (for dimension detection)
+        heading: Table heading context (for dimension detection)
     
     Returns:
         ExtractionResult with individual line items
@@ -557,12 +717,17 @@ def extract_line_items_granular(
             row_type = "item"
         
         collected_items.add(item_key)
+        
+        # Classify this specific row's dimension (handles mixed tables like META)
+        row_dimension = classify_row_dimension(item_label, dimension)
+        
         rows.append(ExtractedRow(
             segment=segment,
             item=item_label,  # Keep original label for transparency
             value=scaled_val,
             row_type=row_type,
             year=year,
+            dimension=row_dimension,
         ))
     
     # Aggregate by segment (for compatibility)
@@ -580,6 +745,7 @@ def extract_line_items_granular(
         year=year,
         rows=rows,
         table_total=table_total,
+        dimension=dimension,
         segment_revenues=segment_revenues,
         adjustment_revenues=adjustment_revenues,
     )
@@ -592,6 +758,9 @@ def extract_with_layout_fallback(
     llm_layout: Dict[str, Any],
     ticker: str = "",
     prefer_granular: bool = True,
+    dimension: str = "segment",
+    caption: str = "",
+    heading: str = "",
 ) -> Optional[ExtractionResult]:
     """
     Try extraction with multiple layout variations if the first attempt fails.
@@ -610,6 +779,9 @@ def extract_with_layout_fallback(
                 ticker=ticker,
                 layout=llm_layout,
                 expected_segments=expected_segments,
+                dimension=dimension,
+                caption=caption,
+                heading=heading,
             )
             if result.rows:
                 return result

@@ -1,5 +1,6 @@
 {
-  "table_id": "t0031",
+  "table_id": "t0011",
   "confidence": 0.9,
-  "rationale": "Table t0031 disaggregates revenue by business lines including 'Family of Apps' and 'Reality Labs' and shows a 'Total revenue' row for recent fiscal years 2022, 2023, and 2024. It matches the preferred segment/product line granularity and includes total revenue, aligning well with the requested business lines."
+  "selected_dimension": "segment",
+  "rationale": "The table with ID t0011 disaggregates revenue by business lines 'Family of Apps' and 'Reality Labs' and includes a 'Total revenue' row for the years 2022, 2023, and 2024. Although the inferred dimension is not explicitly marked as 'product_service', this table provides the most granular revenue breakdown available in the candidate set, matching the known segments for Meta Platforms, Inc. The table includes recent fiscal years (>=2018) and is located in Item 8 / Notes as preferred. No product/service-level revenue table was found, so this segment-level revenue table is the best available."
 }

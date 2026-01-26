@@ -1,0 +1,16 @@
+{
+  "rows": [
+    {
+      "revenue_line": "Advertising",
+      "description": "We generate substantially all of our revenue from selling advertising placements on our family of apps to marketers, which is reflected in FoA. Ads on our platform enable marketers to reach people across a range of marketing objectives, such as generating leads or driving awareness."
+    },
+    {
+      "revenue_line": "Other revenue",
+      "description": ""
+    },
+    {
+      "revenue_line": "Reality Labs",
+      "description": "RL generates revenue from sales of consumer hardware products, software, and content."
+    }
+  ]
+}
