@@ -1,6 +1,9 @@
 {
   "dimension": "reportable_segments",
-  "segments": [],
+  "segments": [
+    "Compute & Networking",
+    "Graphics"
+  ],
   "include_segments_optional": [],
-  "notes": "The provided snippets do not contain any information about business-line or reportable segment disclosures for NVIDIA. There is no evidence of segment reporting or product category breakdowns in the text. NVIDIA is known to report as a single operating segment in recent filings."
+  "notes": "NVIDIA primarily reports financial results by two reportable segments: Compute & Networking and Graphics. No evidence of corporate adjustments included in total revenues."
 }

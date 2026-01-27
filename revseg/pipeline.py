@@ -64,6 +64,25 @@ from revseg.extraction import (
     ValidationResult,
 )
 
+# RAG imports (lazy to avoid import errors if faiss not installed)
+_RAG_AVAILABLE = False
+try:
+    from revseg.rag import (
+        Chunk,
+        detect_toc_regions,
+        chunk_10k_structured,
+        build_table_local_context_dom,
+        TwoTierIndex,
+        embed_chunks,
+        embed_query,
+        describe_revenue_lines_rag,
+        write_csv1_qa_artifact,
+        summarize_coverage,
+    )
+    _RAG_AVAILABLE = True
+except ImportError as e:
+    print(f"[Warning] RAG module not available: {e}")
+
 
 def _load_json(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -417,6 +436,7 @@ def run_pipeline(
     max_react_iters: int = 3,
     validation_tolerance_pct: float = 0.02,
     csv1_only: bool = False,
+    use_rag: bool = False,
 ) -> Dict[str, Any]:
     """End-to-end run for multiple tickers (latest 10-K per ticker).
     
@@ -426,7 +446,10 @@ def run_pipeline(
     
     Args:
         csv1_only: If True, skip CSV2/CSV3 generation to save tokens.
+        use_rag: If True, use RAG-based description extraction (requires faiss-cpu).
     """
+    if use_rag and not _RAG_AVAILABLE:
+        raise RuntimeError("RAG requested but revseg.rag module not available. Install faiss-cpu.")
     # Clear caches at start of run to ensure fresh state
     _clear_caches()
     
@@ -822,27 +845,129 @@ def run_pipeline(
                     for r in filtered_rows
                 ]
                 
-                # Step 4: Get line item descriptions (LLM)
-                # Use quality model for better company-language descriptions
-                print(f"[{ticker}] extracting line item descriptions (LLM quality)...", flush=True)
+                # Step 4: Get line item descriptions
                 html_text = _html_text_for_llm(html_path)
-                desc_result = describe_revenue_lines(
-                    llm_quality,
-                    ticker=ticker,
-                    company_name=company_name,
-                    fiscal_year=year,
-                    revenue_lines=revenue_lines_for_desc,
-                    table_context=accepted_table_context,
-                    html_text=html_text,
-                )
-                
-                # Create description lookup
                 descriptions_by_line = {}
-                for row in desc_result.get("rows", []):
-                    line = row.get("revenue_line", "")
-                    desc = row.get("description", "")
-                    if line:
-                        descriptions_by_line[line] = desc
+                rag_coverage = None
+                
+                if use_rag:
+                    # RAG-based description extraction
+                    print(f"[{ticker}] extracting descriptions with RAG...", flush=True)
+                    
+                    # Build or load embedding index
+                    embeddings_dir = out_dir.parent / "embeddings"
+                    index = TwoTierIndex(ticker, cache_dir=embeddings_dir)
+                    
+                    if index.cache_exists():
+                        print(f"[{ticker}] loading embeddings from cache...", flush=True)
+                        index.load_from_cache()
+                    else:
+                        print(f"[{ticker}] building embeddings (this may take a moment)...", flush=True)
+                        
+                        # Detect TOC regions
+                        toc_regions = detect_toc_regions(html_text)
+                        
+                        # Build full-filing chunks
+                        full_chunks = chunk_10k_structured(html_text, toc_regions=toc_regions)
+                        # Exclude TOC chunks for embedding
+                        full_chunks_filtered = [c for c in full_chunks if not c.is_toc]
+                        
+                        # Build table-local chunks using DOM
+                        html_content = html_path.read_text(encoding="utf-8", errors="ignore")
+                        soup = BeautifulSoup(html_content, "lxml")
+                        table_elem = soup.find("table", id=table_id) or soup.find("table", {"id": table_id})
+                        
+                        local_chunks = []
+                        if table_elem:
+                            _, local_chunks = build_table_local_context_dom(soup, table_elem, sibling_blocks=4)
+                        
+                        # Embed chunks
+                        full_texts = [c.text for c in full_chunks_filtered]
+                        local_texts = [c.text for c in local_chunks] if local_chunks else []
+                        
+                        full_embeddings = embed_chunks(full_texts) if full_texts else []
+                        local_embeddings = embed_chunks(local_texts) if local_texts else []
+                        
+                        # Build index
+                        index.build(
+                            table_local_chunks=local_chunks,
+                            full_filing_chunks=full_chunks_filtered,
+                            embeddings_local=local_embeddings,
+                            embeddings_full=full_embeddings,
+                        )
+                        print(f"[{ticker}] embedded {len(full_chunks_filtered)} full + {len(local_chunks)} local chunks", flush=True)
+                    
+                    # Prepare revenue lines with group info
+                    revenue_lines_with_group = [
+                        {
+                            "item": r.item,
+                            "value": r.value,
+                            "revenue_group": _get_revenue_group(ticker, _clean_revenue_line(r.item), r.dimension, r.segment),
+                        }
+                        for r in filtered_rows
+                    ]
+                    
+                    # Get table caption for query context
+                    table_caption = accepted_table_context.get("caption", "")
+                    
+                    # Run RAG-based description extraction
+                    rag_results = describe_revenue_lines_rag(
+                        llm_quality,
+                        ticker=ticker,
+                        company_name=company_name,
+                        fiscal_year=year,
+                        revenue_lines=revenue_lines_with_group,
+                        index=index,
+                        table_caption=table_caption,
+                    )
+                    
+                    # Build description lookup
+                    for result in rag_results:
+                        if result.description:
+                            descriptions_by_line[result.revenue_line] = result.description
+                    
+                    # Write QA artifact
+                    rag_coverage = write_csv1_qa_artifact(
+                        ticker=ticker,
+                        fiscal_year=year,
+                        results=rag_results,
+                        output_dir=t_art,
+                    )
+                    print(f"[{ticker}] RAG coverage: {rag_coverage.coverage_pct}% ({rag_coverage.lines_with_description}/{rag_coverage.total_lines})", flush=True)
+                    
+                    # Save RAG results as desc_result format for artifact
+                    desc_result = {
+                        "rows": [
+                            {
+                                "revenue_line": r.revenue_line,
+                                "description": r.description,
+                                "products_services": r.products_services_list,
+                                "evidence_chunk_ids": r.evidence_chunk_ids,
+                                "retrieval_tier": r.retrieval_tier,
+                                "validated": r.validated,
+                            }
+                            for r in rag_results
+                        ]
+                    }
+                else:
+                    # Legacy keyword-based description extraction
+                    print(f"[{ticker}] extracting line item descriptions (LLM quality)...", flush=True)
+                    desc_result = describe_revenue_lines(
+                        llm_quality,
+                        ticker=ticker,
+                        company_name=company_name,
+                        fiscal_year=year,
+                        revenue_lines=revenue_lines_for_desc,
+                        table_context=accepted_table_context,
+                        html_text=html_text,
+                    )
+                    
+                    # Create description lookup
+                    for row in desc_result.get("rows", []):
+                        line = row.get("revenue_line", "")
+                        desc = row.get("description", "")
+                        if line:
+                            descriptions_by_line[line] = desc
                 
                 # Save descriptions artifact
                 (t_art / "csv1_line_descriptions.json").write_text(
@@ -1012,6 +1137,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
     p.add_argument("--max-react-iters", type=int, default=3)
     p.add_argument("--out-dir", default="data/outputs")
     p.add_argument("--csv1-only", action="store_true", help="Generate only CSV1 (skip CSV2/CSV3)")
+    p.add_argument("--use-rag", action="store_true", help="Use RAG-based description extraction (requires faiss-cpu)")
     args = p.parse_args(argv)
     return {
         "tickers": [t.strip().upper() for t in args.tickers.split(",") if t.strip()],
@@ -1020,6 +1146,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> Dict[str, Any]:
         "max_react_iters": int(args.max_react_iters),
         "out_dir": Path(args.out_dir),
         "csv1_only": args.csv1_only,
+        "use_rag": args.use_rag,
     }
 
 

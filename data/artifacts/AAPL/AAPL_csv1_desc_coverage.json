@@ -1,0 +1,78 @@
+{
+  "ticker": "AAPL",
+  "fiscal_year": 2025,
+  "total_lines": 5,
+  "lines_with_description": 5,
+  "coverage_pct": 100.0,
+  "missing_labels": [],
+  "tier1_count": 0,
+  "tier2_count": 5,
+  "failed_gate_count": 0,
+  "validation_failed_count": 0,
+  "line_details": [
+    {
+      "revenue_line": "iPhone",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0207",
+        "chunk_0261",
+        "chunk_0262"
+      ],
+      "products_found": 1,
+      "description_preview": "iPhone revenue includes net sales from Apple's iPhone products, with increases in 2025 primarily due"
+    },
+    {
+      "revenue_line": "Mac",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0200"
+      ],
+      "products_found": 2,
+      "description_preview": "The Mac revenue line includes net sales from the Company's line of Mac computers, such as MacBook Pr"
+    },
+    {
+      "revenue_line": "iPad",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0208"
+      ],
+      "products_found": 1,
+      "description_preview": "The iPad revenue line includes net sales from various iPad models, with increases in 2025 primarily "
+    },
+    {
+      "revenue_line": "Wearables, Home and Accessories",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0208"
+      ],
+      "products_found": 2,
+      "description_preview": "Wearables, Home and Accessories net sales include revenue from Apple's wearable devices, home produc"
+    },
+    {
+      "revenue_line": "Services (1)",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0261",
+        "chunk_0207",
+        "chunk_0209"
+      ],
+      "products_found": 2,
+      "description_preview": "Services net sales include amortization of the deferred value of services bundled in the sales price"
+    }
+  ]
+}

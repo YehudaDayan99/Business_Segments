@@ -2,27 +2,74 @@
   "rows": [
     {
       "revenue_line": "Compute",
-      "description": ""
+      "description": "The Compute revenue line includes revenue from data center compute platforms for accelerated computing and AI solutions, driven by demand for architectures such as Hopper and Blackwell, and used in applications like large language models, recommendation engines, and generative AI.",
+      "products_services": [
+        "Hopper",
+        "Blackwell",
+        "GPU"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0343",
+        "chunk_0380"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Networking",
-      "description": ""
+      "description": "The Networking revenue line includes revenue from Data Center networking, which grew 51% driven by Ethernet for AI revenue, including the Spectrum-X end-to-end ethernet platform.",
+      "products_services": [
+        "Ethernet"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0380"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Gaming",
-      "description": ""
+      "description": "The Gaming revenue line within the Graphics segment includes revenue from products sold to customers such as AIBs, distributors, ODMs, OEMs, and system integrators. This segment's revenue is driven by the sale of graphics products for gaming applications.",
+      "products_services": [
+        "AIBs"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0381"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Professional Visualization",
-      "description": ""
+      "description": "Professional Visualization revenue includes sales of Ada RTX GPU workstations used for generative AI-powered design, simulation, and engineering.",
+      "products_services": [
+        "GPU"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0362"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Automotive",
-      "description": ""
+      "description": "Automotive revenue for fiscal year 2025 was up 55% from a year ago, driven by sales of our self-driving platforms.",
+      "products_services": [
+        "Automotive"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0363"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "OEM and Other",
-      "description": ""
+      "description": "",
+      "products_services": [],
+      "evidence_chunk_ids": [],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     }
   ]
 }

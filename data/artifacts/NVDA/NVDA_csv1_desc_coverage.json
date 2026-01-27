@@ -1,0 +1,87 @@
+{
+  "ticker": "NVDA",
+  "fiscal_year": 2025,
+  "total_lines": 6,
+  "lines_with_description": 5,
+  "coverage_pct": 83.3,
+  "missing_labels": [
+    "OEM and Other"
+  ],
+  "tier1_count": 0,
+  "tier2_count": 5,
+  "failed_gate_count": 0,
+  "validation_failed_count": 0,
+  "line_details": [
+    {
+      "revenue_line": "Compute",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0343",
+        "chunk_0380"
+      ],
+      "products_found": 3,
+      "description_preview": "The Compute revenue line includes revenue from data center compute platforms for accelerated computi"
+    },
+    {
+      "revenue_line": "Networking",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0380"
+      ],
+      "products_found": 1,
+      "description_preview": "The Networking revenue line includes revenue from Data Center networking, which grew 51% driven by E"
+    },
+    {
+      "revenue_line": "Gaming",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0381"
+      ],
+      "products_found": 1,
+      "description_preview": "The Gaming revenue line within the Graphics segment includes revenue from products sold to customers"
+    },
+    {
+      "revenue_line": "Professional Visualization",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0362"
+      ],
+      "products_found": 1,
+      "description_preview": "Professional Visualization revenue includes sales of Ada RTX GPU workstations used for generative AI"
+    },
+    {
+      "revenue_line": "Automotive",
+      "has_description": true,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [
+        "chunk_0363"
+      ],
+      "products_found": 1,
+      "description_preview": "Automotive revenue for fiscal year 2025 was up 55% from a year ago, driven by sales of our self-driv"
+    },
+    {
+      "revenue_line": "OEM and Other",
+      "has_description": false,
+      "retrieval_tier": "tier2_full",
+      "evidence_gate_passed": true,
+      "validated": true,
+      "top_chunk_ids": [],
+      "products_found": 0,
+      "description_preview": ""
+    }
+  ]
+}

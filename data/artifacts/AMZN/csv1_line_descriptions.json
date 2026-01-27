@@ -2,31 +2,75 @@
   "rows": [
     {
       "revenue_line": "Online stores (1)",
-      "description": "Includes product sales and digital media content where we record revenue gross. We leverage our retail infrastructure to offer a wide selection of consumable and durable goods that includes media products available in both a physical and digital format, such as books, videos, games, music, and software. These product sales include digital products sold on a transactional basis. Digital media content subscriptions that provide unlimited viewing or usage rights are included in “Subscription services.”"
+      "description": "The 'Online stores' revenue line includes sales to consumers through Amazon's online stores, offering hundreds of millions of unique products sold by Amazon and third parties across dozens of product categories. Customers access these offerings through Amazon's websites and mobile apps.",
+      "products_services": [
+        "Consumers"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0052"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Physical stores (2)",
-      "description": "Includes product sales where our customers physically select items in a store. Sales to customers who order goods online for delivery or pickup at our physical stores are included in 'Online stores.'"
+      "description": "Physical stores revenue includes sales to consumers through Amazon's physical retail locations, focusing on selection, price, and convenience across dozens of product categories.",
+      "products_services": [
+        "Consumers"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0052"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Third-party seller services (3)",
-      "description": "Includes commissions and any related fulfillment and shipping fees, and other third-party seller services."
+      "description": "",
+      "products_services": [],
+      "evidence_chunk_ids": [],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Advertising services (4)",
-      "description": "Includes sales of advertising services to sellers, vendors, publishers, authors, and others, through programs such as sponsored ads, display, and video advertising."
+      "description": "",
+      "products_services": [],
+      "evidence_chunk_ids": [],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Subscription services (5)",
-      "description": "Includes annual and monthly fees associated with Amazon Prime memberships, as well as digital video, audiobook, digital music, e-book, and other non-AWS subscription services."
+      "description": "Subscription services revenue includes digital media content subscriptions that provide unlimited viewing or usage rights. This encompasses media products available in both physical and digital formats, such as books, videos, games, music, and software.",
+      "products_services": [
+        "books",
+        "videos",
+        "games",
+        "music",
+        "software"
+      ],
+      "evidence_chunk_ids": [
+        "chunk_0461"
+      ],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "AWS",
-      "description": "We serve developers and enterprises of all sizes, including start-ups, government agencies, and academic institutions, through AWS, which offers a broad set of on-demand technology services, including compute, storage, database, analytics, and machine learning, and other services."
+      "description": "",
+      "products_services": [],
+      "evidence_chunk_ids": [],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     },
     {
       "revenue_line": "Other (6)",
-      "description": "Includes sales related to various other offerings, such as healthcare services, certain licensing and distribution of video content, and shipping services, and our co-branded credit card agreements."
+      "description": "",
+      "products_services": [],
+      "evidence_chunk_ids": [],
+      "retrieval_tier": "tier2_full",
+      "validated": true
     }
   ]
 }
