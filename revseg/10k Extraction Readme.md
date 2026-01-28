@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This module implements **Stage 1** of the Revenue Segmentation product: **programmatically collecting the latest 10-K filing** for a list of US-traded public companies from **SEC EDGAR**.
+This module implements **Stage 1** of the Revenue Classifier: **programmatically collecting the latest 10-K filing** for a list of US-traded public companies from **SEC EDGAR**.
 
 It performs three core tasks:
 

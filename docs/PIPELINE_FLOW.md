@@ -1,4 +1,4 @@
-# CSV1 Revenue Segmentation Pipeline
+# Revenue Classifier Pipeline
 
 ## Objective
 
@@ -10,7 +10,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│                          CSV1 REVENUE EXTRACTION PIPELINE                                    │
+│                          REVENUE CLASSIFIER PIPELINE                                         │
 ├─────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                              │
 │   INPUT: Ticker Symbol (e.g., "MSFT")                                                       │
@@ -865,7 +865,7 @@ data/
 | `--csv1-only --use-rag` | ~45 sec | ~4 min | ~5-6/ticker + embeddings |
 | Full | ~50 sec | ~5 min | ~8-10/ticker |
 
-### Latest Results (v20 - Post P1-P5 Implementation)
+### Latest Results (v21 - Post P1-P6 Implementation)
 
 | Ticker | Coverage | Lines | Mode | Notes |
 |--------|----------|-------|------|-------|
@@ -874,11 +874,11 @@ data/
 | GOOGL | **100%** | 6/6 | Legacy | **Fixed with P5**: YouTube ads + Google Network now captured |
 | AMZN | **100%** | 7/7 | Legacy | **Fixed with P2**: All footnotes captured |
 | META | **100%** | 3/3 | Legacy | **Fixed with P5**: Advertising, Reality Labs, Other revenue |
-| NVDA | 67% | 4/6 | Legacy | **Fixed with P1**: Labels correct; Compute empty, OEM empty |
+| NVDA | **83%** | 5/6 | Legacy | **Fixed with P6**: Compute from segment enumeration; OEM empty |
 
-**Overall Coverage: 35/37 = 95%** (Compute/OEM expected-empty or segment-level)
+**Overall Coverage: 36/37 = 97%** (OEM and Other expected-empty)
 
-### Phases 1-5 Implemented
+### Phases 1-6 Implemented
 
 1. **Phase 1: NVDA item_col Fix** (`react_agents.py`):
    - `choose_item_col()` deterministic selector based on numeric/alpha ratios
@@ -907,15 +907,18 @@ data/
    - Searches full `html_text` for advertising (not just Note 2 section)
    - **Result**: META 0% → 100%, GOOGL 67% → 100%
 
+6. **Phase 6: Segment Enumeration Extraction** (`react_agents.py`):
+   - `_extract_from_segment_enumeration()` parses "{Segment} includes X; Y; Z" patterns
+   - Handles HTML encoding variations (`&amp;` vs `&` vs `And`)
+   - Extracts component descriptions from segment-level narratives
+   - **Result**: NVDA Compute 0% → 100% (extracted from "Compute & Networking" segment definition)
+
 ### Remaining Gaps (Low Priority)
 
 | Issue | Affected | Root Cause | Status |
 |-------|----------|------------|--------|
-| **Compute empty** | NVDA | No standalone definition in 10-K | Acceptable (segment-level) |
-| **OEM and Other empty** | NVDA | No definition in narrative | Expected (minor line) |
-| **MSFT text bleeding** | MSFT | Some cross-section text | Low impact on quality |
-
-See `docs/DEV_PROPOSAL.md` for detailed fix plan.
+| **OEM and Other empty** | NVDA | Generic "Product/Service disclosure" group, no definition | Expected (minor line) |
+| **MSFT text bleeding** | MSFT | Some cross-section text captured | Low impact on quality |
 
 ---
 

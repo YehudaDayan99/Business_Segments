@@ -1,91 +1,90 @@
-# Business Classification - Revenue Segmentation
+# Revenue Classifier
 
-A Python pipeline for extracting and analyzing revenue segmentation data from SEC 10-K filings.
+A Python pipeline for extracting revenue line items and their descriptions from SEC 10-K filings using LLM-assisted agents.
 
 ## Overview
 
-This project implements a multi-stage pipeline to:
-1. **Download 10-K filings** from SEC EDGAR for US-traded public companies
-2. **Extract table candidates** from HTML filings
-3. **Identify revenue segmentation tables** (future: LLM-based selection)
-4. **Extract structured revenue data** (future: CSV generation)
+This project extracts structured revenue data from public company 10-K filings:
+- **Revenue line items** with dollar amounts (e.g., iPhone: $209,586M)
+- **Revenue groups** mapping items to reportable segments
+- **Company-language descriptions** explaining what each line item represents
+
+## Quick Start
+
+```bash
+# Install dependencies
+pip install requests beautifulsoup4 lxml openai
+
+# Set environment variables
+$env:SEC_USER_AGENT="YourApp/0.1 (your.email@domain.com)"
+$env:OPENAI_API_KEY="your_key_here"
+
+# Run pipeline
+python -m revseg.pipeline --tickers MSFT,AAPL,GOOGL --csv1-only
+```
+
+## Output
+
+The pipeline generates `csv1_segment_revenue.csv`:
+
+| Company Name | Ticker | Fiscal Year | Revenue Group | Revenue Line | Description | Revenue ($m) |
+|--------------|--------|-------------|---------------|--------------|-------------|--------------|
+| Apple Inc. | AAPL | 2025 | Product/Service | iPhone | iPhone is the Company's line of smartphones... | 209,586.0 |
+| Apple Inc. | AAPL | 2025 | Product/Service | Services | Advertising, AppleCare, Cloud Services... | 109,158.0 |
 
 ## Project Structure
 
 ```
-.
+Revenue Classifier/
 ├── revseg/                    # Core modules
-│   ├── sec_edgar.py           # SEC EDGAR download functionality
-│   ├── table_candidates.py    # Table extraction from HTML
-│   └── *.md                   # Documentation
-├── Base.ipynb                 # Main notebook for running pipeline
-├── data/                      # Downloaded filings and outputs (gitignored)
-└── .cache/                    # Cache directory (gitignored)
+│   ├── pipeline.py            # Main orchestration
+│   ├── react_agents.py        # LLM agents for table/description extraction
+│   ├── table_candidates.py    # HTML table extraction
+│   ├── mappings.py            # Company-specific segment mappings
+│   ├── extraction/            # Deterministic extraction logic
+│   └── rag/                   # Optional RAG-based descriptions
+├── docs/
+│   └── PIPELINE_FLOW.md       # Detailed technical documentation
+├── data/
+│   ├── 10k/                   # Downloaded SEC filings
+│   └── outputs/               # Generated CSV files
+└── tests/                     # Unit tests
 ```
 
-## Setup
+## Command Line Options
 
-### Prerequisites
-
-- Python 3.8+
-- pip
-
-### Installation
-
-1. Create a virtual environment:
 ```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# or
-source .venv/bin/activate  # Mac/Linux
+python -m revseg.pipeline --tickers MSFT,AAPL --csv1-only [options]
 ```
 
-2. Install dependencies:
-```bash
-pip install requests beautifulsoup4 lxml
-```
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--tickers` | (required) | Comma-separated tickers |
+| `--out-dir` | `data/outputs` | Output directory |
+| `--csv1-only` | `false` | Generate only CSV1 (recommended) |
+| `--use-rag` | `false` | Use RAG for descriptions |
+| `--model-fast` | `gpt-4.1-mini` | Model for table selection |
+| `--model-quality` | `gpt-4.1` | Model for descriptions |
 
-3. Set SEC compliance environment variable:
-```bash
-# Windows PowerShell
-$env:SEC_USER_AGENT="YourApp/0.1 (your.email@domain.com)"
+## Current Coverage
 
-# Windows CMD
-set SEC_USER_AGENT=YourApp/0.1 (your.email@domain.com)
-
-# Mac/Linux
-export SEC_USER_AGENT="YourApp/0.1 (your.email@domain.com)"
-```
-
-Or set it in your notebook:
-```python
-import os
-os.environ["SEC_USER_AGENT"] = "YourApp/0.1 (your.email@domain.com)"
-```
-
-## OpenAI API key (for ReAct pipeline)
-
-The ReAct pipeline uses the OpenAI API and expects `OPENAI_API_KEY` in your environment.
-
-**Windows PowerShell:**
-
-```powershell
-$env:OPENAI_API_KEY="your_key_here"
-```
-
-Important: do not commit API keys into notebooks or source files.
-
-## Usage
-
-See `Base.ipynb` for example usage. The notebook demonstrates:
-- Downloading 10-K filings for multiple tickers
-- Extracting table candidates from HTML
-- Ranking and inspecting candidate tables
+| Ticker | Coverage | Notes |
+|--------|----------|-------|
+| AAPL | 100% | 5/5 lines with descriptions |
+| MSFT | 100% | 10/10 lines with descriptions |
+| GOOGL | 100% | 6/6 lines with descriptions |
+| AMZN | 100% | 7/7 lines with descriptions |
+| META | 100% | 3/3 lines with descriptions |
+| NVDA | 83% | 5/6 lines (OEM empty - expected) |
 
 ## Documentation
 
-- `revseg/10k Extraction Readme.md` - Stage 1: SEC EDGAR download
-- `revseg/Table Candidate readme.md` - Stage 3: Table extraction
+See `docs/PIPELINE_FLOW.md` for detailed technical documentation including:
+- Pipeline flow diagram
+- LLM agent descriptions
+- Regex patterns used
+- Data structures
+- Troubleshooting guide
 
 ## License
 

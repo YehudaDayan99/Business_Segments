@@ -1,4 +1,4 @@
-# CSV1 Revenue Segmentation Pipeline
+# Revenue Classifier Pipeline
 
 ## Objective
 
